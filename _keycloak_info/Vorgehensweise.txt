@@ -1,0 +1,250 @@
+Phase 1: System verstehen (Woche 1) 
+- verimi tiefgreifend analysieren:
+Welche Protokolle? (SAML, OAuth2, LDAP, proprietär?)
+Welche Anwendungen sind angebunden?
+Wie viele Benutzer? (100 oder 100.000 macht einen Unterschied)
+Gibt es Service-Accounts, API-Keys, Maschinen-zu-Maschinen-Auth?
+Welche GRC-Anforderungen gelten? (ISO 27001, BSI, GDPR, branchenspezifisch?)
+
+Phase 2: Specification (Woche 1–2) ✅
+- spec driven
+Intent: Warum Keycloak + Passkeys? (Sicherheit, Kosten, Zukunftsfähigkeit)
+Requirements:
+Functional: SSO, MFA, Passkey-Login, Benutzerverwaltung, Audit-Logging
+Non-functional: Performance, Verfügbarkeit, Skalierbarkeit
+Compliance: Protokollierung, Aufbewahrungsfristen, Datenschutz
+Product-Spec: User Stories, User Journeys (Login, Passkey-Registrierung, Recovery)
+Technical-Spec: Architektur, Datenflüsse, Integration Points
+Tests: Unit, Integration, E2E, Penetrationstests, GRC-Audit
+
+Phase 3: Prototyp (Woche 2–3) ⚠️ Kritisch
+Hier liegt das größte Risiko.
+
+Keycloak aufsetzen:
+Docker-Container für schnelles Setup
+Realm-Struktur planen (master, company, ...)
+Identity Provider verimi → Keycloak (falls möglich, als Brücke)
+Themes anpassen (Corporate Design)
+Passkey-Integration:
+WebAuthn/FIDO2 in Keycloak aktivieren
+Client-App muss WebAuthn-API implementieren
+Recovery-Strategie für verlorene Passkeys (Backup-Codes, Admin-Reset)
+OpenCode + Spec-Driven:
+Gut für Boilerplate-Code, Config-Generierung
+Aber: Keycloak-Konfiguration ist oft UI-basiert oder JSON-basiert – AI kann helfen, aber du musst verstehen, was es generiert
+
+Realistischer MVP in 4 Wochen:
+
+Keycloak läuft mit 1-2 Test-Clients
+Passkey-Login funktioniert für Testbenutzer
+verimi läuft parallel (Fallback)
+Keine vollständige Migration noch
+
+Phase 4: GRC-Prüfung (Woche 3–4) ⚠️ Nicht am Ende!
+
+GRC darf nicht als letzter Schritt angehängt werden.
+
+Schon in Phase 2 einbeziehen:
+Welche Audit-Logs werden benötigt?
+Wer darf auf was zugreifen? (RBAC)
+Datenwohnsitz / DSGVO
+Passwort-Policy vs. Passkey-Policy
+
+
+Phase 4: Compliance-Check:
+Penetrationstest (extern oder intern)
+Access-Review: Wer hat was zugewiesen?
+Dokumentation für Audit
+
+Phase 5: Testen & Anpassen (Woche 4+) ✅
+Pilotgruppe: 5–10 freiwillige Benutzer
+Parallelbetrieb: verimi + Keycloak gleichzeitig
+Rollback-Plan: Wenn Keycloak ausfällt, wie schnell können wir zu verimi zurück?
+Monitoring: Fehler, Performance, Sicherheitsereignisse
+
+
+------------
+
+1. Kontext
+Die bestehende Anwendungslandschaft besteht aus:
+•	React Frontend
+•	.NET Framework Backend
+•	AWS-Infrastruktur
+•	bestehender Anbindung an Identitätslösungen (Verimi, Adesso)
+•	geplante Einführung von Passkeys (WebAuthn)
+Aktuell wird eine zukünftige Identity- und Access-Management-Lösung (IAM) bewertet.
+Dabei wurden drei Optionen untersucht:
+A) Direkte WebAuthn-Implementierung in AWS Lambda
+B) Keycloak als Cloud-/SaaS-Dienst
+C) Keycloak auf eigener AWS-Infrastruktur
+________________________________________
+2. Problemstellung
+Die neue Authentifizierungsplattform soll:
+•	Passkeys unterstützen
+•	moderne Standards (OIDC, OAuth2) bereitstellen
+•	MFA ermöglichen
+•	zukünftige Erweiterungen unterstützen
+•	zentrale Benutzerverwaltung ermöglichen
+•	Compliance-Anforderungen erfüllen
+•	langfristig wartbar sein
+________________________________________
+3. Treiber der Entscheidung
+Fachliche Anforderungen
+•	Passkey-Unterstützung
+•	Benutzerverwaltung
+•	Rollen- und Rechtekonzept
+•	Unterstützung mehrerer Authentifizierungsverfahren
+•	spätere SSO-Fähigkeit
+Technische Anforderungen
+•	OIDC / OAuth2
+•	JWT-basierte Authentifizierung
+•	Integration mit React
+•	Integration mit .NET Framework
+•	Erweiterbarkeit
+Nichtfunktionale Anforderungen
+•	Hohe Sicherheit
+•	Datenhoheit
+•	Skalierbarkeit
+•	Wartbarkeit
+•	Zukunftssicherheit
+________________________________________
+4. Bewertete Optionen
+Option A: Direktes WebAuthn in AWS Lambda
+Vorteile
+•	Volle Kontrolle
+•	Keine zusätzliche IAM-Plattform
+•	Geringe Infrastrukturkosten
+Nachteile
+•	WebAuthn muss selbst implementiert werden
+•	Benutzerverwaltung muss selbst entwickelt werden
+•	MFA muss selbst entwickelt werden
+•	Recovery-Mechanismen müssen selbst entwickelt werden
+•	Hoher Wartungsaufwand
+•	Hohe Sicherheitsverantwortung
+Bewertung
+Geeignet für reine Passkey-Anwendungen.
+Nicht geeignet als strategische IAM-Plattform.
+________________________________________
+Option B: Keycloak Cloud / SaaS
+Vorteile
+•	Schnelle Einführung
+•	Geringer Betriebsaufwand
+•	Vollständige IAM-Funktionalität
+•	Passkeys sofort verfügbar
+Nachteile
+•	Abhängigkeit von einem externen Anbieter
+•	Benutzerdaten liegen außerhalb der eigenen AWS-Umgebung
+•	Laufende Betriebskosten
+Bewertung
+Geeignet für Organisationen, die möglichst wenig Betriebsaufwand wünschen.
+________________________________________
+Option C: Keycloak auf eigener AWS-Infrastruktur
+Vorteile
+•	Volle Keycloak-Funktionalität
+•	Passkeys sofort verfügbar
+•	Volle Kontrolle über Benutzerdaten
+•	Daten verbleiben im eigenen AWS-Account
+•	Zukunftssichere Erweiterbarkeit
+•	Integration weiterer Identity Provider möglich
+•	Unterstützung von SSO, MFA und Federation
+Nachteile
+•	Eigener Betriebsaufwand
+•	Updates und Monitoring müssen selbst durchgeführt werden
+•	Hochverfügbarkeit muss geplant werden
+Bewertung
+Bester Kompromiss zwischen Kontrolle, Sicherheit und Funktionalität.
+________________________________________
+5. Entscheidung
+Option C (Keycloak auf eigener AWS-Infrastruktur) wird ausgewählt.
+________________________________________
+6. Begründung
+Die Organisation verfügt bereits über AWS-Know-how und betreibt eigene Anwendungen in AWS.
+Die Vorteile von Keycloak überwiegen deutlich gegenüber einer Eigenentwicklung:
+•	Einführung von Passkeys ohne Eigenentwicklung
+•	Standardisierte OIDC-Integration
+•	Unterstützung zukünftiger Identity-Provider
+•	Einheitliche IAM-Plattform
+•	Reduzierung technischer Risiken
+Gleichzeitig bleiben alle Identitätsdaten innerhalb der eigenen AWS-Umgebung.
+________________________________________
+7. Zielarchitektur
+Plain Text
++----------------+
+| React Frontend |
++--------+-------+
+|
+| OIDC / PKCE
+v
++----------------+
+| Keycloak |
+| (AWS Hosting) |
++--------+-------+
+|
+| JWT
+v
++----------------+
+| .NET API |
++--------+-------+
+|
+v
++----------------+
+| Fachliche DB |
++----------------+
+Weitere Zeilen anzeigen
+________________________________________
+8. Datenhaltung
+In Keycloak
+Speicherung von:
+•	Passkeys
+•	Credential IDs
+•	Public Keys
+•	Sitzungen
+•	MFA-Konfiguration
+•	Benutzeridentitäten
+In der Anwendung
+Speicherung von:
+Plain Text
+UserId
+KeycloakUserId (sub)
+Department
+Role
+Fachliche Berechtigungen
+
+
+
+------------------------
+
+Hallo Kollegen,
+
+nachfolgend der aktuelle Stand der Dinge:
+
+1. Abstimmung mit JustRelate
+
+Wir haben mit JustRelate bezüglich des möglichen Betriebs von Keycloak kommuniziert. Dabei wurden zwei Optionen betrachtet:
+•	Betrieb als SaaS-Lösung
+•	Betrieb auf einer EC2-Instanz in unserer AWS-Umgebung
+Bislang haben wir hierzu noch keine Rückmeldung von JustRelate erhalten.
+
+2. Detailliertes Vorgehensmodell für Anmeldung und Passkey-Migration
+
+Wir haben inzwischen ein detailliertes fachliches und technisches Vorgehensmodell für die Umstellung von Verimi/Adesso auf Passkey erarbeitet.
+Das Grundprinzip ist, dass wir weiterhin dem bereits bekannten Anmeldeverfahren über Verimi bzw. Adesso folgen. 
+Neu hinzu kommt die Möglichkeit, nach einer erfolgreichen Anmeldung freiwillig auf Passkey umzusteigen. 
+Technisch betrachtet kommt damit lediglich ein weiterer "Pseudo-Provider" hinzu, nämlich Keycloak.
+Die bestehende REST-API-Architektur bleibt dabei grundsätzlich unverändert und muss lediglich um die für die Passkey-Migration erforderlichen Funktionen erweitert werden.
+
+3. Erweiterungen des Datenmodells
+Für die Umsetzung der Migration werden einige zusätzliche Datenbankfelder benötigt. Hierzu werden wir auf das SAP-/Datenbank-Team zugehen.
+Im Unterschied zu Verimi und Adesso handelt es sich hierbei nicht um eine neue Registrierung, sondern um eine Migration bereits bestehender Nutzer auf ein neues Authentifizierungsverfahren.
+Die aktuell vorgesehenen Felder sind:
+
+KC_SUBID VARCHAR(112)
+KC_HASHEDSUBID VARCHAR(112)
+KC_SOURCE_PROVIDER INT
+KC_LASTLOGIN_TIMESTAMP VARCHAR(20)
+KC_KZ_LASTLOGIN VARCHAR(1)
+
+Zur Veranschaulichung haben wir zwei Grafiken erstellt, in denen sowohl der Migrationsprozess als auch die technischen Zusammenhänge detailliert dargestellt sind.
+Siehe folgende Bilder:
+- "Keycloak vs. WebAuthn_ Sicherheitsvergleich.png"
+- "Keycloak-Anbieter und Cloud-Optionen im Überblick.png"

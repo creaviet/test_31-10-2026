@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kundenportal — Anmelden</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Kundenportal</span>
+    <span class="prototype-badge">Prototyp</span>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <!-- Login-Einstieg: Verimi-Anmeldung (Standard) + Passkey-Login (Direkteinstieg,
+         Entscheidung 2026-10-08; ursprünglich FR-03 „genau ein Einstiegspunkt" geändert) -->
+    <section id="view-login" class="card" hidden>
+      <h1>Anmelden</h1>
+      <p>Melden Sie sich an, um Ihre Daten einzusehen.</p>
+      <div class="row">
+        <button id="btn-login" type="button" class="primary">Anmelden</button>
+        <button id="btn-passkey" type="button" class="secondary">Passkey Login</button>
+      </div>
+      <p id="login-hint" class="hint" role="status" hidden>Einen Moment, Sie werden weitergeleitet …</p>
+    </section>
+
+    <!-- Registrierungsfrage (Phase 1, kein Passkey vorhanden) -->
+    <section id="view-question" class="card" hidden>
+      <h1>Zukünftige Anmeldung</h1>
+      <p>Damit Sie sich künftig schnell und sicher anmelden können, bieten wir Ihnen an, eine sichere Anmeldemethode einzurichten.</p>
+      <p class="hint">Die Einrichtung dauert nur einen Moment. Sie können die Entscheidung bei jeder Anmeldung erneut treffen.</p>
+      <div class="row">
+        <button id="btn-yes" type="button" class="primary">Ja, einrichten</button>
+        <button id="btn-no" type="button" class="secondary">Nein, vorerst nicht</button>
+      </div>
+    </section>
+
+    <!-- Registrierungsformular: genau drei vorbefüllte Felder (FR-13/FR-14) -->
+    <section id="view-register" class="card" hidden>
+      <h1>Sichere Anmeldemethode einrichten</h1>
+      <p>Prüfen Sie Ihre Angaben. Sie können nichts ändern — alle Felder sind vorausgefüllt.</p>
+      <form id="register-form" novalidate>
+        <label for="f-last">Nachname</label>
+        <input id="f-last" name="last_name" readonly required>
+        <label for="f-first">Vorname</label>
+        <input id="f-first" name="first_name" readonly required>
+        <label for="f-email">E-Mail</label>
+        <input id="f-email" name="email" type="email" readonly required>
+        <button id="btn-register" type="submit" class="primary">Sichere Anmeldemethode einrichten</button>
+      </form>
+      <p id="register-hint" class="hint" role="status" hidden>Bitte schließen Sie die Anmeldung am Gerät ab.</p>
+    </section>
+
+    <!-- Geschützter Bereich: NICHT statisch im DOM. Er wird erst NACH
+         erfolgreicher Server-Autorisierung (/api/session) aus dieser Vorlage
+         erzeugt. So enthält das cachebare HTML-Dokument selbst keine geschützten
+         Inhalte/PII — und nach dem Logout bleibt kein Protected-Rest im DOM
+         (Back-Navigation/bfcache). -->
+    <template id="tpl-protected">
+      <section id="view-protected" class="card" hidden>
+        <h1>Ihre Übersicht</h1>
+        <p id="protected-name"></p>
+        <p class="hint">Dies ist der geschützte Bereich des Prototyps.</p>
+        <button id="btn-logout" type="button" class="secondary">Abmelden</button>
+      </section>
+    </template>
+
+    <!-- Sperrmeldung (FR-45, BR-06) -->
+    <section id="view-blocked" class="card error-card" hidden>
+      <h1>Anmeldung derzeit nicht möglich</h1>
+      <p>Ihnen steht die Anmeldung über dieses Portal derzeit nicht zur Verfügung.</p>
+      <p>Wenn Sie sich als berechtigt einstufen, wenden Sie sich bitte an Ihren Anbieter — dort wird Ihnen der weitere Weg genannt.</p>
+      <button id="btn-blocked-back" type="button" class="secondary">Zurück zur Startseite</button>
+    </section>
+
+    <!-- Fehler → verständliche Meldung, kein Fehlercode (FR-35, SEC-04) -->
+    <section id="view-error" class="card error-card" hidden>
+      <h1>Das hat leider nicht geklappt</h1>
+      <p id="error-text"></p>
+      <button id="btn-error-back" type="button" class="secondary">Zurück zur Startseite</button>
+    </section>
+
+    <!-- Nicht unterstützter Browser (ERR-04, NFR-Env-04) -->
+    <section id="view-unsupported" class="card error-card" hidden>
+      <h1>Ihr Gerät wird nicht unterstützt</h1>
+      <p>Bitte nutzen Sie einen Desktop-Computer mit einem aktuellen Browser (Chrome, Edge, Safari oder Firefox).</p>
+    </section>
+  </main>
+
+  <footer class="footer">Prototyp — keine echten Daten.</footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

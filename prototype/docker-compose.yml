@@ -1,0 +1,110 @@
+# Passkey-Prototyp — Container-Setup (portal-mock, verimi-mock, Keycloak 26.7.4)
+#
+# Start:      docker compose up -d --build
+# Setup:      einmalig Realm/Flows/Clients/User einspielen (Auto-Setup-Service unten)
+# Logs:       docker compose logs -f portal-mock
+# Stopp:      docker compose down          (Volumes bleiben: KC-Daten + Portal-DB)
+# Rücksetzen: docker compose down -v       (löscht KC-Daten + Portal-DB)
+#
+# Hinweis Docker vs. URLs: Container erreichen einander über DNS-Namen
+# (keycloak, verimi, portal). Der BROWSER des Nutzers erreicht alles über
+# localhost:<Host-Port>. Der Portal-Server unterscheidet deshalb:
+#   KEYCLOAK_URL         = Server-seitig  (http://keycloak:8082)  → Token/Admin/JWKS
+#   KEYCLOAK_PUBLIC_URL  = Browser-seitig (http://localhost:8082) → Auth-Redirect/Issuer
+# Der Keycloak-Token-Issuer wird aus --hostname=http://localhost:8082 geprägt
+# und stimmt damit mit KEYCLOAK_PUBLIC_URL überein (jose-Issuer-Check im Portal).
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    command:
+      - start-dev
+      - --http-port=8082
+      # KC 26 akzeptiert nur Hostname OHNE Port oder eine volle URL — "localhost:8082"
+      # ist beides nicht und lässt den Container in einer Crash-Loop sterben.
+      - --hostname=http://localhost:8082
+      - --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASS:-admin}
+    ports:
+      - '8082:8082'
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      # Zwei Fallstricke: (1) /health/ready liegt am Management-Interface Port 9000,
+      # NICHT am HTTP-Port 8082 (der antwortet dort mit 404). (2) Das KC-Image
+      # enthält weder curl noch wget — wir prüfen per bash-/dev/tcp gegen 9000.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": *\"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    restart: unless-stopped
+
+  # Einmaliger Realm-Setup-Service (idempotent): legt Realm, WebAuthn-Policies,
+  # Flows (browser-passkey), Clients und Test-User an. Läuft nach jedem `up`
+  # erneut — unkritisch (alle Schritte sind Update-tauglich).
+  keycloak-setup:
+    image: node:24-alpine
+    working_dir: /app/keycloak
+    environment:
+      KC_URL: http://keycloak:8082
+      KC_ADMIN_USER: ${KC_ADMIN_USER:-admin}
+      KC_ADMIN_PASS: ${KC_ADMIN_PASS:-admin}
+      REALM: passkey-prototyp
+      KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-dev-portal-admin-secret}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+    volumes:
+      - ./keycloak:/app/keycloak:ro
+      - ./shared:/app/shared:ro
+    command: node setup-realm.mjs
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  verimi-mock:
+    build: ./verimi-mock
+    environment:
+      PORT: 3000
+      PUBLIC_BASE_URL: ${VERIMI_PUBLIC_BASE_URL:-http://localhost:8081}
+      PORTAL_CALLBACK_URL: ${PORTAL_CALLBACK_URL:-http://localhost:8080/api/auth/verimi/callback}
+      HMAC_SECRET: ${VERIMI_HMAC_SECRET:-verimi-mock-dev-secret}
+      USER_FILE: /shared/users.json
+    volumes:
+      - ./shared:/shared:ro
+    ports:
+      - '8081:3000'
+    restart: unless-stopped
+
+  portal-mock:
+    build: ./portal-mock
+    environment:
+      PORT: 3000
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      KEYCLOAK_URL: http://keycloak:8082
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8082}
+      KEYCLOAK_REALM: passkey-prototyp
+      KEYCLOAK_CLIENT_ID: portal-mock
+      KC_BOOTSTRAP_CLIENT_ID: portal-bootstrap
+      KC_ADMIN_CLIENT_ID: portal-admin
+      KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-dev-portal-admin-secret}
+      R_OPS_TOKEN: ${R_OPS_TOKEN:-dev-rops-token}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-900}
+      AUTH_TTL_SECONDS: ${AUTH_TTL_SECONDS:-600}
+      VERIMI_LOGIN_URL: ${VERIMI_LOGIN_URL:-http://localhost:8081/login}
+      VERIMI_LOGOUT_URL: ${VERIMI_LOGOUT_URL:-http://localhost:8081/logout}
+      VERIMI_HMAC_SECRET: ${VERIMI_HMAC_SECRET:-verimi-mock-dev-secret}
+      PHASE_CONFIG_FILE: /app/config/phase-config.json
+      PORTAL_DB_PATH: /app/data/portal.db
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - '8080:3000'
+    depends_on:
+      - keycloak
+    restart: unless-stopped
+
+volumes:
+  keycloak-data:

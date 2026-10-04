@@ -1,0 +1,15 @@
+{
+  "_comment": "Demo-Baseline fuer den Passkey-Zustand. Genutzt von scripts/reset-demo-state.mjs (u.a. automatisch aus stop-native.ps1 -Keycloak).",
+  "_hint": "passkeyFixture ist ein bewusst NICHT authentifizierbares WebAuthn-Credential (kein privater Schluessel) — es repraesentiert nur \"Nutzer hat einen Passkey\". Keycloaks Admin-API kann keine Credentials anlegen; daher Import per partialImport.",
+  "passkeys": {
+    "erika": false,
+    "bob": false,
+    "carol": true
+  },
+  "passkeyFixture": {
+    "type": "webauthn-passwordless",
+    "userLabel": "Passkey (Default Label)",
+    "credentialData": "{\"aaguid\":\"01020304-0506-0708-0102-030405060708\",\"credentialId\":\"alR74bIWHKf2KRKWPcCeN/O4jv3kQYVwNoOdb1VVcBg=\",\"counter\":1,\"credentialPublicKey\":\"pQECAyYgASFYID9-MgFWogH2fWotRTqRcTU2Xgvz8TSCaHsNYhP1NPiKIlggiXR2DWQzKxf7GA-_fQuOkGqN5MK--D74WbZhhX4UGiw\",\"attestationStatementFormat\":\"none\",\"transports\":[\"internal\"]}",
+    "secretData": "{}"
+  }
+}

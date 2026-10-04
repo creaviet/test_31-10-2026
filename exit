@@ -1,0 +1,65 @@
+[33mcommit ab98927dfa3cddd8350fa6b856f8aaa970be8caf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: VGV-H10254 <thanh.le@versorgungswerke-berlin.de>
+Date:   Tue Oct 6 14:49:50 2026 +0200
+
+    prototype
+
+[33mcommit e6a0bba1952b8d6aed8909bb48763a393d53c07b[m
+Author: VGV-H10254 <thanh.le@versorgungswerke-berlin.de>
+Date:   Tue Oct 6 14:44:03 2026 +0200
+
+    README: Hinweis auf projektlokalen Docker-Installer (.runtime\docker-installer)
+
+[33mcommit 79ed8dfe24fa055cd024476947027bd26ea88b18[m
+Author: VGV-H10254 <thanh.le@versorgungswerke-berlin.de>
+Date:   Tue Oct 6 14:40:58 2026 +0200
+
+    Keycloak-Runtime ins Projekt verlagert (.runtime\, gitignored) — kein C:\Temp-Abhängigkeit mehr
+    
+    - Keycloak-26.7.4-Distribution, Analyse-Quellen (kc-src) und Logs von
+      C:\Temp\opencode nach prototype\.runtime\ verschoben (wird täglich auf C gelöscht)
+    - start-native.ps1: Logs nach .runtime\logs; KC-HOME-Auto-Erkennung aus
+      .runtime\kc\keycloak-26.7.4 (KC_HOME-Env gewinnt weiterhin)
+    - README: Startdoku auf projektlokale Pfade umgestellt
+
+[33mcommit 9bdecfaf15efb0616b9ed3431f0a80f0ec496cd2[m
+Author: VGV-H10254 <thanh.le@versorgungswerke-berlin.de>
+Date:   Tue Oct 6 12:40:52 2026 +0200
+
+    Passkey-Prototyp lauffähig: Portal/Verimi-Mocks + Keycloak 26.7 mit Variante-A-Registrierung; E2E T1–T5 und Smoke grün
+    
+    - Portal-Mock (Express/jose): Login-Einstieg, Phasenschalter (Datei, je Anfrage),
+      15-Min-Session, Verimi-Callback mit HMAC, Passkey-Frage, Verify/Register über KC,
+      403-Sperre in Phase 2, SQLite-Event-Log (append-only, pseudonymisiert)
+    - Verimi-Mock: Session-Cookie-SSO (AC-P3), HMAC-Signatur, users.json
+    - Keycloak 26.7.4 (setup-realm.mjs): Realm, WebAuthn-Policies (resident/discoverable),
+      Flow browser-passkey (Cookie DISABLED + webauthn REQUIRED — Fix für DefaultAuthentication-
+      Flow-UNKNOWN_USER), Clients portal-mock/bootstrap/admin, Impersonation + Required Action,
+      azp/aud-Token-Bindung im Portal
+    - E2E (Playwright, virtueller Authenticator): T1–T5 grün; Smoke 13/13 deterministisch
+    - Betrieb: start/stop-native.ps1 (Port-basiert), docker-compose.yml (URL-Splitting
+      KEYCLOAK_URL/KEYCLOAK_PUBLIC_URL, KC --hostname localhost:8082), .env.example, README
+
+[33mcommit 16480acd0df5f44f8ed833342c59f48bf41cef1c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: creaviet <le.thanh.business@gmail.com>
+Date:   Mon Oct 5 22:47:36 2026 +0200
+
+    updated idea
+
+[33mcommit 43c6815259479871d7440f09d1550dc41f5efa19[m
+Author: VGV-H10254 <thanh.le@versorgungswerke-berlin.de>
+Date:   Mon Oct 5 15:40:58 2026 +0200
+
+    update idea
+
+[33mcommit 261cf875c8a32e9fe6b65ed74079fbd570b739dd[m
+Author: Le <h10254@versorgungswerke-berlin.de>
+Date:   Mon Oct 5 14:43:26 2026 +0200
+
+    update idea
+
+[33mcommit 9a9060b93e295f5ddd27db4de189a1523ff40320[m
+Author: creaviet <le.thanh.business@gmail.com>
+Date:   Sun Oct 4 21:47:33 2026 +0200
+
+    first commit

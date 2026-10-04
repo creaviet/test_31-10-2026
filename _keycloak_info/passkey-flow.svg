@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 700" width="400" height="700">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="700" fill="white"/>
+  
+  <!-- Title -->
+  <text x="200" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold">Ab dem</text>
+  <text x="200" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold">01.01.2027</text>
+  
+  <!-- Box 1: Passkey -->
+  <rect x="100" y="100" width="200" height="80" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="200" y="135" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Passkey</text>
+  <text x="200" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">(als Ersatz für verimi)</text>
+  
+  <!-- Arrow 1 -->
+  <line x1="200" y1="180" x2="200" y2="220" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 2: Verifizierung -->
+  <rect x="100" y="220" width="200" height="80" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="200" y="255" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Verifizierung</text>
+  
+  <!-- Arrow 2 -->
+  <line x1="200" y1="300" x2="200" y2="340" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 3: Passkey erhalten -->
+  <rect x="100" y="340" width="200" height="80" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="200" y="375" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Passkey (ein-</text>
+  <text x="200" y="400" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">geben (Fingerabdruck, Face id)</text>
+  
+  <!-- Arrow 3 -->
+  <line x1="200" y1="420" x2="200" y2="460" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 4: Passkey eingeben -->
+  <rect x="100" y="460" width="200" height="80" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="200" y="505" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Passkey eingeben</text>
+  
+  <!-- Arrow 4 -->
+  <line x1="200" y1="540" x2="200" y2="580" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 5: Portal -->
+  <rect x="100" y="580" width="200" height="80" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="200" y="625" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Portal</text>
+</svg>

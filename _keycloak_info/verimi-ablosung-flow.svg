@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="1000" fill="white"/>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold">Konzept Ablösung von Verimi</text>
+  
+  <!-- Date -->
+  <text x="100" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">Bis zum</text>
+  <text x="100" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="14">31.12.2026</text>
+  
+  <!-- Box 1: Verimi -->
+  <rect x="50" y="130" width="140" height="60" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="120" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Verimi</text>
+  <text x="120" y="175" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">(einloggen)</text>
+  
+  <!-- Arrow 1 -->
+  <line x1="120" y1="190" x2="120" y2="220" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 2: email -->
+  <rect x="50" y="220" width="140" height="50" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="120" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">email</text>
+  
+  <!-- Arrow 2 -->
+  <line x1="120" y1="270" x2="120" y2="300" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 3: Passwort -->
+  <rect x="50" y="300" width="140" height="50" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="120" y="330" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Passwort</text>
+  
+  <!-- Arrow 3 split -->
+  <line x1="120" y1="350" x2="120" y2="380" stroke="black" stroke-width="2"/>
+  <line x1="120" y1="380" x2="60" y2="380" stroke="black" stroke-width="2"/>
+  <line x1="120" y1="380" x2="180" y2="380" stroke="black" stroke-width="2"/>
+  <line x1="60" y1="380" x2="60" y2="410" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="180" y1="380" x2="180" y2="410" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 4a: Email -->
+  <rect x="10" y="410" width="100" height="50" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="60" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Email</text>
+  
+  <!-- Box 4b: SMS -->
+  <rect x="130" y="410" width="100" height="50" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="180" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">SMS</text>
+  
+  <!-- Merge arrows -->
+  <line x1="60" y1="460" x2="60" y2="490" stroke="black" stroke-width="2"/>
+  <line x1="180" y1="460" x2="180" y2="490" stroke="black" stroke-width="2"/>
+  <line x1="60" y1="490" x2="120" y2="490" stroke="black" stroke-width="2"/>
+  <line x1="180" y1="490" x2="120" y2="490" stroke="black" stroke-width="2"/>
+  <line x1="120" y1="490" x2="120" y2="520" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 5: Verifizierung verimi -->
+  <rect x="40" y="520" width="160" height="60" fill="#ffcccc" stroke="black" stroke-width="2" rx="5"/>
+  <text x="120" y="555" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Verifizierung verimi</text>
+  
+  <!-- Arrow to Keycloak -->
+  <line x1="200" y1="550" x2="280" y2="550" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Note box -->
+  <rect x="320" y="480" width="200" height="120" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="420" y="505" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">Nach einer frischen Verimi-</text>
+  <text x="420" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">Anmeldung wird die Einrichtung</text>
+  <text x="420" y="535" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">angeboten. Der bestehende</text>
+  <text x="420" y="550" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">Mitgliedsbezug wird</text>
+  <text x="420" y="565" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">übernommen, ein Abbruch</text>
+  <text x="420" y="580" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">verändert den bisherigen Zugang</text>
+  <text x="420" y="595" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">nicht</text>
+  
+  <!-- Note connector -->
+  <line x1="320" y1="540" x2="280" y2="550" stroke="black" stroke-width="1" stroke-dasharray="5,5"/>
+  
+  <!-- Box 6: Keycloak -->
+  <rect x="280" y="520" width="120" height="60" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="340" y="555" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Keycloak</text>
+  
+  <!-- Arrow down -->
+  <line x1="340" y1="580" x2="340" y2="620" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 7: Ist schon in der KeyCloak DB? -->
+  <rect x="260" y="620" width="160" height="60" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="340" y="645" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">Ist schon in der</text>
+  <text x="340" y="665" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">KeyCloak DB?</text>
+  
+  <!-- Ja arrow to Portal -->
+  <line x1="260" y1="650" x2="120" y2="650" stroke="black" stroke-width="2"/>
+  <text x="190" y="640" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">Ja</text>
+  <line x1="120" y1="650" x2="120" y2="750" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Nein arrow down -->
+  <line x1="340" y1="680" x2="340" y2="720" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <text x="350" y="705" text-anchor="start" font-family="Arial, sans-serif" font-size="12">Nein</text>
+  
+  <!-- Box 8: Registrieren in der KeyCloak DB -->
+  <rect x="240" y="720" width="200" height="60" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="340" y="745" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">Registrieren in der</text>
+  <text x="340" y="765" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">KeyCloak DB</text>
+  
+  <!-- Arrow to Portal -->
+  <line x1="240" y1="750" x2="120" y2="750" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Box 9: Portal -->
+  <rect x="40" y="750" width="160" height="70" fill="white" stroke="black" stroke-width="2" rx="5"/>
+  <text x="120" y="780" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Portal</text>
+  <text x="120" y="800" text-anchor="middle" font-family="Arial, sans-serif" font-size="10">(bei erfolgreicher</text>
+  <text x="120" y="815" text-anchor="middle" font-family="Arial, sans-serif" font-size="10">Verifizierung weitergeleitet)</text>
+  
+  <!-- KeyCloak DB cylinder -->
+  <ellipse cx="520" cy="640" rx="50" ry="15" fill="white" stroke="black" stroke-width="2"/>
+  <rect x="470" y="640" width="100" height="60" fill="white" stroke="black" stroke-width="2"/>
+  <ellipse cx="520" cy="700" rx="50" ry="15" fill="white" stroke="black" stroke-width="2"/>
+  <text x="520" y="675" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">KeyCloak</text>
+  <text x="520" y="695" text-anchor="middle" font-family="Arial, sans-serif" font-size="12">DB</text>
+  
+  <!-- Arrow from Keycloak to DB -->
+  <line x1="400" y1="550" x2="470" y2="550" stroke="black" stroke-width="2"/>
+  <line x1="470" y1="550" x2="470" y2="640" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Arrow from DB to Registrieren -->
+  <line x1="470" y1="700" x2="440" y2="750" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+</svg>

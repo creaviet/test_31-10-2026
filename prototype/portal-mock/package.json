@@ -1,0 +1,17 @@
+{
+  "name": "portal-mock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kundenportal-Mock mit Login-Einstieg, Registrierung und Passkey-Login (Prototyp)",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "jose": "^6.0.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

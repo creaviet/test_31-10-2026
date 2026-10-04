@@ -1,0 +1,22 @@
+# Abhängigkeiten
+node_modules/
+
+# Laufzeit-Daten (SQLite-Event-Log des Portals; wird beim Start angelegt)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Laufzeit (Keycloak-Distribution, kc-src-Analyse-Quellen, Logs, Hexdump etc.)
+.runtime/
+
+# Test-Artefakte (Playwright)
+tests/test-results/
+tests/playwright-report/
+
+# Lokale Env-Konfiguration
+.env
+
+# OS / Editor
+Thumbs.db
+.DS_Store

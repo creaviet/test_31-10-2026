@@ -1,0 +1,6 @@
+- Wer sind die User? Angestellte oder Kunden oder auch externe Partner
+- Wieviele User insgesamt?
+- Wie viele User mit ausländischen Pass?
+- What does "done" mean?
+- Is passkey mandatory? or does User and Password work as well=
+- 

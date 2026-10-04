@@ -1,0 +1,7 @@
+- System verstehen:
+verimi
+Welche Protokolle? (SAML, OAuth2, LDAP, proprietär?)
+Welche Anwendungen sind angebunden?
+Wie viele Benutzer? (100 oder 100.000 macht einen Unterschied)
+Gibt es Service-Accounts, API-Keys, Maschinen-zu-Maschinen-Auth?
+Welche GRC-Anforderungen gelten? (ISO 27001, BSI, GDPR, branchenspezifisch?)
