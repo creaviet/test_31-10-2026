@@ -171,6 +171,15 @@ Authenticator (CTAP2, resident, user-verified) auf einer gemeinsamen Flow-Seite
 ## Hinweise & Grenzen
 
 - Alles läuft ausschließlich auf **localhost** (KC-Hostname, Redirect-URIs, Cookies).
+- **Anmeldedienst nicht erreichbar:** Vor jeder Weiterleitung prüft das Portal die
+  Erreichbarkeit des vorgeschalteten Dienstes und zeigt sonst eine verständliche
+  Meldung („Anmeldung derzeit nicht möglich") statt der Browser-Fehlerseite:
+  - **Verimi** (Phase 1): in API-01 über `VERIMI_INTERNAL_URL` (Docker:
+    `http://verimi-mock:3000/login`; nativ Fallback `VERIMI_LOGIN_URL` — in Docker
+    wäre `localhost` der Portal-Container selbst).
+  - **Keycloak** (Phase 2, „Passkey Login", Registrierung): in API-01 bzw. am
+    zentralen Durchlaufpunkt `/api/auth/kc/start` über `KEYCLOAK_URL`
+    (Docker: `http://keycloak:8082`, Discovery-Endpoint des Realms).
 - **Logout beendet alle Sessions** (Portal + Keycloak + Verimi).
   Keycloak wird bevorzugt per **OIDC RP-Initiated Logout** (`end_session_endpoint`
   mit `id_token_hint` + `post_logout_redirect_uri`) abgemeldet — das `id_token` der

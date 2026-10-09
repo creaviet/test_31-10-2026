@@ -55,6 +55,15 @@ export const cfg = {
   // --- Verimi(-Mock) ------------------------------------------------------
   verimiLoginUrl: process.env.VERIMI_LOGIN_URL || 'http://localhost:8081/login',
   /**
+   * Server-seitig erreichbare Verimi-Basis-URL für die Erreichbarkeits-Vorprüfung
+   * in API-01. Bewusst GETRENNT von verimiLoginUrl: In Docker ist `localhost:8081`
+   * aus dem Portal-Container heraus NICHT erreichbar (der Browser nutzt
+   * `localhost`, der Container muss den Compose-DNS-Namen `verimi-mock:3000`
+   * verwenden). Nativ (ohne Docker) fällt der Wert auf verimiLoginUrl zurück.
+   */
+  verimiInternalUrl:
+    process.env.VERIMI_INTERNAL_URL || process.env.VERIMI_LOGIN_URL || 'http://localhost:8081/login',
+  /**
    * Logout-Endpunkt des Verimi(-Mocks). Wird beim Portal-Logout als Redirect
    * angesteuert, damit die Verimi-SSO-Session serverseitig beendet wird —
    * sonst würde ein erneuter Login über die bestehende SSO ohne Zugangsdaten

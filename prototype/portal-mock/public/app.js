@@ -39,6 +39,9 @@
     foreign: 'Die Anmeldung konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.',
     registration: 'Die Einrichtung konnte nicht fortgesetzt werden. Bitte starten Sie erneut.',
     service: 'Der Dienst ist derzeit nicht erreichbar. Bitte versuchen Sie es später erneut.',
+    // Verimi-Anmeldedienst nicht erreichbar (Vorprüfung in API-01). Ohne diese
+    // Meldung würde der Browser auf der Verimi-Fehlerseite landen.
+    auth: 'Die Anmeldung ist derzeit nicht möglich, da der Anmeldedienst momentan nicht erreichbar ist. Bitte versuchen Sie es zu einem späteren Zeitpunkt erneut.',
     generic: 'Das hat leider nicht geklappt. Bitte versuchen Sie es erneut.',
   };
 
@@ -52,9 +55,17 @@
     $('btn-login').disabled = true;
     $('login-hint').hidden = false;
     try {
-      const res = await fetch('/api/auth/start');
-      if (!res.ok) throw new Error('start failed');
-      const data = await res.json();
+      // Accept: application/json → der Server antwortet im Fehlerfall mit JSON
+      // (inkl. `reason`), statt uns per Redirect auf die Fehlerseite zu schicken.
+      // So können wir „Anmeldedienst nicht erreichbar" gezielt melden.
+      const res = await fetch('/api/auth/start', { headers: { accept: 'application/json' } });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.redirect_url) {
+        $('btn-login').disabled = false;
+        $('login-hint').hidden = true;
+        // reason='auth' → Verimi nicht erreichbar (Vorprüfung in API-01)
+        return showError(data?.reason === 'auth' ? 'auth' : 'service');
+      }
       location.assign(data.redirect_url);
     } catch {
       $('btn-login').disabled = false;

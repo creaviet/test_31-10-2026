@@ -94,6 +94,10 @@ services:
       AUTH_TTL_SECONDS: ${AUTH_TTL_SECONDS:-600}
       VERIMI_LOGIN_URL: ${VERIMI_LOGIN_URL:-http://localhost:8081/login}
       VERIMI_LOGOUT_URL: ${VERIMI_LOGOUT_URL:-http://localhost:8081/logout}
+      # Server-seitige Erreichbarkeitsprüfung in API-01: Container-zu-Container
+      # über den Compose-DNS-Namen (NICHT localhost — das wäre der Portal-Container
+      # selbst). Der Browser nutzt weiterhin VERIMI_LOGIN_URL.
+      VERIMI_INTERNAL_URL: ${VERIMI_INTERNAL_URL:-http://verimi-mock:3000/login}
       VERIMI_HMAC_SECRET: ${VERIMI_HMAC_SECRET:-verimi-mock-dev-secret}
       PHASE_CONFIG_FILE: /app/config/phase-config.json
       PORTAL_DB_PATH: /app/data/portal.db

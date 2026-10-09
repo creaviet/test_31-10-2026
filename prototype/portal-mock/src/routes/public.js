@@ -60,6 +60,37 @@ export const publicRoutes = (app, db) => {
     return res;
   }
 
+  // Erreichbarkeits-Vorprüfung eines Upstream-Dienstes (hier: Verimi-Mock).
+  // Zweck: Der Browser darf NICHT auf eine nicht erreichbare Verimi-Seite
+  // weitergeleitet werden — sonst zeigt der Browser seine eigene Fehlerseite
+  // („Diese Seite ist leider nicht erreichbar", Edge/Chrome). Stattdessen soll
+  // die Anwendung eine verständliche Meldung anzeigen (FR-35).
+  //   - fetch löst bei JEDER HTTP-Antwort auf (auch 3xx/4xx) → Dienst läuft.
+  //   - fetch wirft bei Verbindungsfehler/Timeout/DNS-Fehler → Dienst down.
+  //   - redirect:'manual' verhindert Seiteneffekte (kein Folgen einer evtl.
+  //     Rückleitung in den Portal-Callback).
+  // Die URL stammt AUSSCHLIESSLICH aus der Konfiguration, nie aus Nutzereingaben
+  // (kein SSRF-Vektor).
+  async function isReachable(url, timeoutMs = 2000) {
+    try {
+      await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { accept: 'text/html' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Erreichbarkeits-Vorprüfung des Keycloak-Dienstes — Server-zu-Server über
+  // cfg.keycloakUrl (Docker: http://keycloak:8082). Geprüft wird der Discovery-
+  // Endpoint des Realms. Verhindert, dass der Browser auf der Keycloak-Fehlerseite
+  // landet (statt der verständlichen Meldung des Portals).
+  const kcProbeUrl = `${cfg.keycloakUrl}/realms/${cfg.realm}/.well-known/openid-configuration`;
+
   // -------------------------------------------------------------------------
   // API-01  GET /api/auth/start — Phasenschalter lesen und Redirect-Ziel liefern
   // -------------------------------------------------------------------------
@@ -70,11 +101,38 @@ export const publicRoutes = (app, db) => {
         if (isBrowser(req)) return res.redirect('/?v=error&m=service');
         return json(res, 503, { message: 'Der Dienst ist derzeit nicht erreichbar. Bitte versuchen Sie es später erneut.' });
       }
-      const redirect_url =
-        phase.phase === 'phase1'
-          ? cfg.verimiLoginUrl
-          : `${cfg.publicBaseUrl}/api/auth/kc/start?context=login`;
-      return json(res, 200, { phase: phase.phase, redirect_url });
+      // Phase 1: Vor der Weiterleitung prüfen, ob der vorgeschaltete
+      // Verimi-Dienst überhaupt läuft. Ist er down, würde der Browser auf einer
+      // nicht erreichbaren Seite landen (Browser-Fehlerseite). Stattdessen liefern
+      // wir eine verständliche Meldung (FR-35, „Anmeldung derzeit nicht möglich").
+      if (phase.phase === 'phase1') {
+        const up = await isReachable(cfg.verimiInternalUrl);
+        if (!up) {
+          if (isBrowser(req)) return res.redirect('/?v=error&m=auth');
+          return json(res, 503, {
+            message:
+              'Die Anmeldung ist derzeit nicht möglich, da der Anmeldedienst momentan nicht erreichbar ist. Bitte versuchen Sie es zu einem späteren Zeitpunkt erneut.',
+            reason: 'auth',
+          });
+        }
+        return json(res, 200, { phase: phase.phase, redirect_url: cfg.verimiLoginUrl });
+      }
+
+      // Phase 2: Kein Verimi, aber Keycloak als vorgeschalteter Anmeldedienst →
+      // Erreichbarkeit vor der Weiterleitung prüfen (sonst Keycloak-Fehlerseite).
+      if (!(await isReachable(kcProbeUrl))) {
+        if (isBrowser(req)) return res.redirect('/?v=error&m=auth');
+        return json(res, 503, {
+          message:
+            'Die Anmeldung ist derzeit nicht möglich, da der Anmeldedienst momentan nicht erreichbar ist. Bitte versuchen Sie es zu einem späteren Zeitpunkt erneut.',
+          reason: 'auth',
+        });
+      }
+
+      return json(res, 200, {
+        phase: phase.phase,
+        redirect_url: `${cfg.publicBaseUrl}/api/auth/kc/start?context=login`,
+      });
     } catch {
       if (isBrowser(req)) return res.redirect('/?v=error&m=service');
       return json(res, 500, { message: 'Ein technischer Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.' });
@@ -167,12 +225,28 @@ export const publicRoutes = (app, db) => {
         return isBrowser(req) ? res.redirect('/?v=blocked') : json(res, 403, { message: 'Die Anmeldung ist derzeit nicht möglich.' });
       }
 
-      // --- Passkey-Vorhandensein prüfen (BE-02, DB-02) ---
-      const user = await kc.findUserByVerifiId(verifiId);
-      const creds = user ? await kc.listCredentials(user.id) : [];
-      const passkeyExists = user ? kc.hasWebAuthnCredential(creds) : false;
+      // --- Passkey-Vorhandensein prüfen (BE-02, DB-02) — BEST-EFFORT ---
+      // Diese Prüfung entscheidet NUR, ob zusätzlich die Registrierung angeboten
+      // wird — sie ist KEINE Voraussetzung für den Zugang. In Phase 1 genügt die
+      // erfolgreiche Verimi-Authentifizierung für den geschützten Bereich.
+      // Ist Keycloak nicht erreichbar, darf die an sich erfolgreiche Verimi-
+      // Anmeldung deshalb NICHT scheitern (sonst technische Fehlerseite): wir
+      // gewähren den Zugang und lassen die Registrierungsfrage entfallen (die
+      // Registrierung selbst benötigt Keycloak ohnehin).
+      let passkeyExists = false;
+      let kcAvailable = true;
+      try {
+        const user = await kc.findUserByVerifiId(verifiId);
+        const creds = user ? await kc.listCredentials(user.id) : [];
+        passkeyExists = user ? kc.hasWebAuthnCredential(creds) : false;
+      } catch (err) {
+        kcAvailable = false;
+        console.warn('[api-02] Passkey-Prüfung nicht möglich (Keycloak nicht erreichbar):', err.message);
+      }
 
-      if (passkeyExists) {
+      // Passkey vorhanden ODER Keycloak nicht erreichbar → direkt in den
+      // geschützten Bereich (im zweiten Fall ohne Registrierungsfrage).
+      if (passkeyExists || !kcAvailable) {
         // Entscheidung 2026-10-08 (Projektträger): Verimi-Authentifizierung genügt in
         // Phase 1 für den geschützten Bereich — KEINE erneute Passkey-Abfrage mehr
         // (bisheriger Verify-Pfad entfernt; konsistent zum „Nein"-Pfad FR-12/AC-P2).
@@ -181,7 +255,7 @@ export const publicRoutes = (app, db) => {
           logEvent(db, { eventType: 'login_success', result: 'success', reference: refOf(verifiId) });
           return res.redirect('/?v=protected');
         }
-        return json(res, 200, { passkey_exists: true });
+        return json(res, 200, { passkey_exists: passkeyExists });
       }
 
       // Kein Passkey → Registrierungsfrage (bei jedem Login erneut, NFR-UX-04)
@@ -189,6 +263,8 @@ export const publicRoutes = (app, db) => {
       return json(res, 200, { passkey_exists: false, prefill: session.prefill });
     } catch (err) {
       console.warn('[api-02] Fehler:', err.message);
+      // Browsern eine verständliche Seite zeigen statt rohem JSON (FR-35).
+      if (isBrowser(req)) return res.redirect('/?v=error&m=service');
       return json(res, 500, { message: 'Ein technischer Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.' });
     }
   });
@@ -304,7 +380,14 @@ export const publicRoutes = (app, db) => {
   // -------------------------------------------------------------------------
   // Prototyp-intern: Keycloak-Auth starten (Phase-2-Login, Passkey-Login, Registrierung)
   // -------------------------------------------------------------------------
-  r.get('/api/auth/kc/start', (req, res) => {
+  r.get('/api/auth/kc/start', async (req, res) => {
+    // Keycloak-Erreichbarkeit VOR der Browser-Weiterleitung prüfen: sonst würde
+    // der Browser auf der Keycloak-Fehlerseite landen. Dieser Endpunkt ist der
+    // zentrale Durchlaufpunkt ALLER Keycloak-Einstiege (Phase-2-Login,
+    // „Passkey Login" und die Registrierung).
+    if (!(await isReachable(kcProbeUrl))) {
+      return res.redirect('/?v=error&m=auth');
+    }
     const context = ['login', 'register'].includes(String(req.query.context)) ? String(req.query.context) : 'login';
     let session = getSession(parseCookies(req)[cookieName]);
 
