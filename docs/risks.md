@@ -154,7 +154,20 @@ Einstufung: W = Wahrscheinlichkeit, A = Auswirkung (1 = gering, 5 = hoch)
 | Empfehlung | Bei 500–1.000 Logins/Monat reicht bewusst eine einfache Konfiguration. **Ein** gemessener Restore-Nachweis (AK-11) ist ausreichend; Hochverfuegbarkeit ist vorerst nicht erforderlich. Das sollte explizit als Entscheidung festgehalten werden, damit HA nicht spaeter als ungeplanter Umfang auftaucht. |
 
 
+## R-14 — Logout haengt von einem externen Dienst ab (Dead-End ohne Verimi)
+
+| Feld | Wert |
+|---|---|
+| W / A | 2 / 3 |
+| Betroffen | Alle Sessions, besonders reine Passkey-/Phase-2-Sessions, die nie ueber Verimi liefen |
+| Ursache | Der Logout leitet **unbedingt** ueber die Verimi-Abmeldung (`verimiLogoutRedirect`) und **delegiert den Ruecksprung zur Portal-Startseite an den Verimi-Dienst** (verimi-mock `server.js` Z. 162–178, `?redirect=…`). Der Abschluss findet nur statt, wenn Verimi erreichbar ist. |
+| Folge | Ist der Anmeldedienst nicht erreichbar (oder nach dem Cutover 01.01.2027 entfernt), bleibt der Browser auf `http://localhost:8081/logout?...` stehen statt auf der Startseite. Der Logout wirkt fehlgeschlagen. |
+| Massnahme | **ADR-002 / Tasks T-35–T-37:** Logout selbst-abschliessend (Ruecksprung aus dem Portal), Verimi-Schritt nur bei echter Verimi-Session, fehlertolerant wenn Verimi fehlt. Umsetzen **vor** Gate B (T-34) und **vor** Cutover (AP-8). |
+| Status | **offen** — ADR-002 vorgeschlagen, noch nicht implementiert |
+
+
 Mögliche IT Security risks:
 - bfcache zeigt geschützte Bereich, wenn man in die Historie zurück geht
 - SSO-Relogin ohne Credentials
-- OIDC logout 
+- OIDC logout
+- Logout hängt von einem externen Dienst (Verimi) ab → Dead-End ohne Verimi (siehe R-14 / ADR-002)

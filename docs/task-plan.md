@@ -311,6 +311,41 @@ Status: **Entwurf zur Freigabe**
 
 ---
 
+## Nachtrag — Logout-Robustheit (aus Logout-Analyse 2026-10-12)
+
+> **Einordnung:** Die Tasks T-01…T-34 oben sind unverändert. Dieser Nachtrag ergänzt
+> drei Tasks aus der Logout-Analyse vom 2026-10-12 (ADR-002). Sie liegen logisch in
+> Phase 3/4 (Login-Pfad), werden aber als T-35…T-37 nachgeführt, um die bestehende
+> Nummerierung nicht zu verschieben. **Reihenfolge:** vor Gate B (T-34) und vor dem
+> Cutover (AP-8), da der Logout sonst nach dem 01.01.2027 an einem entfernten
+> Verimi scheitert.
+
+### T-35 — Logout endet im Portal (selbst-abschließend)
+- **Goal:** Nach dem Abmelden landet der Browser **garantiert** auf der Portal-Startseite (`${PUBLIC_BASE_URL}/`) — ohne dass ein externer Dienst den Rücksprung ausführen muss.
+- **Related requirement:** ADR-002 · Integration 1 / ARCH-04 · FR-63, FR-90 · NFR-Ops-03, AC-8 · Logout-Analyse 2026-10-12
+- **Expected output:** Der Logout-Rücksprung verläuft über eine **Portal-eigene** Route (`post_logout_redirect_uri` bzw. `/logout/verimi`); der Abschluss ist ein 302 des Portals auf `${PUBLIC_BASE_URL}/`; der Verimi-Mock ist für die Rückleitung nicht mehr verantwortlich.
+- **Acceptance check:** Passkey-Login → Logout → Browser-Ziel ist exakt `http://localhost:8080/`; **verimi-mock gestoppt** → Logout endet weiterhin auf `8080`; der Browser bleibt in keinem Fall auf `:8081` stehen.
+- **Do-not-change-boundaries:** Kein offener Redirect (`redirect`-Parameter wird nicht mehr verwendet, Ziel fest auf `PUBLIC_BASE_URL/`); Logout beendet weiterhin **Portal- und Keycloak-Session** (kein Auth-Bypass, PR-03); keine Änderung an den Login-Pfaden (T-10/T-16).
+- **Dependencies:** T-08, T-16, T-17
+
+### T-36 — Verimi-Abmeldung nur bei Verimi-Session
+- **Goal:** Der Verimi-Logout-Schritt wird **nur** ausgeführt, wenn die Session tatsächlich über Verimi entstanden ist.
+- **Related requirement:** ADR-002 · FR-63, AC-8 · PR-03 · T-30 · Logout-Analyse 2026-10-12
+- **Expected output:** Session-Markierung der Herkunft (z. B. `viaVerimi`, gesetzt im Verimi-Callback T-11); `handleLogout` verzweigt darauf; reine Passkey-/Phase-2-Sessions überspringen den Verimi-Redirect vollständig.
+- **Acceptance check:** Passkey-Login ohne Verimi → Netzwerkanalyse zeigt **keinen** Request an `:8081` (prüft zugleich AC-8); Verimi-Login (Phase 1) → Verimi-SSO wird weiterhin beendet; in **beiden** Fällen endet der Logout auf der Portal-Startseite.
+- **Do-not-change-boundaries:** Keine zweite „mock vs. echt"-Variable im Ablauf (T-30: eine Variable); die Markierung ist reine Session-Herkunft, kein Codepfad; keine Verimi-Session bleibt ungekillt (Auth-Bypass-Schutz bleibt).
+- **Dependencies:** T-35, T-11, T-08
+
+### T-37 — Logout fehlertolerant bei nicht erreichbarem Verimi
+- **Goal:** Ist Verimi im Verimi-Fall nicht erreichbar, schließt der Logout trotzdem sicher und mit sauberem Ziel ab.
+- **Related requirement:** ADR-002 · FR-63, FR-90 · NFR-Ops-03 · Logout-Analyse 2026-10-12
+- **Expected output:** Erreichbarkeits-Vorprüfung vor dem Verimi-Redirect (analog API-01); bei Nichterreichbarkeit direkt 302 auf `${PUBLIC_BASE_URL}/`; Keycloak-Session serverseitig per Admin-API beendet (vorhandener Mechanismus `kc.logoutUser`).
+- **Acceptance check:** Verimi gestoppt → Logout endet auf `8080` mit verständlicher Meldung, **keine** Browser-Fehlerseite; anschließender Login bleibt zugangsdaten-/passkey-pflichtig (kein stiller Re-Login); kein Request hängt auf `:8081`.
+- **Do-not-change-boundaries:** Keine neue Abhängigkeit des Logouts von Verimi; keine Endlos-Weiterleitung; keine Ausnahme vom Auth-Bypass-Schutz (Portal- + KC-Session werden immer beendet).
+- **Dependencies:** T-35, T-36
+
+---
+
 ## Reihenfolge und Kritischer Pfad — Kurzfassung
 
 | Reihenfolge | Phase | Tasks | Warum diese Reihenfolge |
@@ -322,6 +357,7 @@ Status: **Entwurf zur Freigabe**
 | 5 | Sicherheit | T-20..T-23 | Querschnitt, aber vor der Betriebsphase, weil sie die Protokollgrundlage liefert |
 | 6 | Betrieb | T-24..T-27 | Erreichbarkeitstest, Restore, Monitoring, Runbook — alles vor Gate B |
 | 7 | Abnahme | T-28..T-34 | Nur was zuvor lief, kann abgenommen werden; T-34 ist der letzte Task |
+| 8 | Nachtrag Logout | T-35..T-37 | Logout von Verimi entkoppeln — **vor** Gate B (T-34) und vor Cutover (AP-8), sonst scheitert der Logout nach 01.01.2027 am entfernten Verimi |
 
 **Kritischer Pfad:** T-01 → T-11 → T-12/T-13 → T-15 → T-16/T-18 → T-24 → T-25 → T-34.
-**Größte Terminrisiken:** (1) OQ-15 ist überfällig und blockiert die Sinnhaftigkeit aller Phasentermine; (2) OQ-TS-3 (Verfahren Erreichbarkeitstest) blockiert T-24, und damit AC-P9/AC-9; (3) interne Ziele Prototyp 2026-10-19 / fertig 2026-10-31 (CN-2) lassen bei 34 kleinen Tasks nur wenig Puffer — bei Verzug ist die Reihenfolge die Rangliste, was zuerst nach Dezember wandert (R-09).
+**Größte Terminrisiken:** (1) OQ-15 ist überfällig und blockiert die Sinnhaftigkeit aller Phasentermine; (2) OQ-TS-3 (Verfahren Erreichbarkeitstest) blockiert T-24, und damit AC-P9/AC-9; (3) interne Ziele Prototyp 2026-10-19 / fertig 2026-10-31 (CN-2) lassen bei 37 kleinen Tasks (inkl. Nachtrag T-35…T-37) nur wenig Puffer — bei Verzug ist die Reihenfolge die Rangliste, was zuerst nach Dezember wandert (R-09).

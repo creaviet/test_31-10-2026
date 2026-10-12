@@ -24,6 +24,9 @@ function newSession(verifiId, prefill) {
     expiresAt: now + cfg.sessionTtlMs,
     decision: null, // 'no' | 'yes'
     passkeyAuth: false, // Token-/Passkey-nachgewiesen
+    // Herkunft (ADR-002): true, wenn die Session über den Verimi-Callback entstand.
+    // Steuert, ob der Logout die Verimi-SSO überhaupt beenden muss.
+    viaVerimi: false,
     kcAuth: null, // laufender Keycloak-Vorgang { context, verifier, kcUserId, registrationId }
     blockedLogged: false,
   };

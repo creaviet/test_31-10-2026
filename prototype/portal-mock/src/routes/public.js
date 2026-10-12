@@ -204,6 +204,11 @@ export const publicRoutes = (app, db) => {
         setSessionCookie(res, session.sid);
       }
 
+      // Logout-Herkunft markieren (ADR-002): Diese Session entstand über den
+      // Verimi-Weg. Nur dann muss der Logout die Verimi-SSO beenden — reine
+      // Passkey-/Phase-2-Sessions (KC-Callback) bleiben davon unberührt.
+      session.viaVerimi = true;
+
       // Identität in der Portal-DB ablegen (ADR-001): Der Anzeigename kommt
       // künftig aus portal_identity, unabhängig vom Login-Weg. Das Prefill in
       // der Session dient weiterhin nur der Formular-Vorbefüllung.
@@ -536,29 +541,50 @@ export const publicRoutes = (app, db) => {
   // -------------------------------------------------------------------------
   // Prototyp-intern: Abmelden — beendet ALLE beteiligten Sessions (Issue 2):
   //   1) Portal-Session + Cookie (dieser Server)
-  //   2) Keycloak-SSO-Session des Nutzers (serverseitig via Admin-API)
-  //   3) Verimi-SSO-Session (per Redirect zum Verimi-Logout; T-08 „eine Variable")
+  //   2) Keycloak-SSO-Session des Nutzers (OIDC RP-Initiated Logout bzw. Admin-API)
+  //   3) Verimi-SSO-Session — NUR falls die Session über Verimi entstand
+  //      (session.viaVerimi) und Verimi erreichbar ist.
   // Erst danach ist ein erneuter Login wieder zugangsdaten-pflichtig. Ohne die
   // SSO-Revocation würde ein Klick auf „Anmelden" über die bestehende
   // Verimi-/Keycloak-Session OHNE Credentials direkt in den geschützten Bereich
   // führen (Auth-Bypass).
+  //
+  // Robustheit (ADR-002): Der Rücksprung zur Portal-Startseite ist portal-eigen
+  // und hängt NICHT von Verimi ab. Die Verimi-Abmeldung ist eine optionale
+  // Zwischenstation; ist Verimi nicht erreichbar, landet der Browser trotzdem
+  // auf der Startseite. Ohne diese Entkopplung blieb der Browser bei
+  // abgeschaltetem Verimi auf http://localhost:8081/logout?... stehen.
   // -------------------------------------------------------------------------
-  // Verimi-SSO-Abmeldung (Rückleitung an die Portal-Startseite).
+
+  // Verimi-SSO-Abmeldung: Rückleitung an die Portal-Startseite. Der Verimi-Mock
+  // leitet nur an den Portal-Origin zurück (verimi-mock/server.js:162–178).
   const verimiLogoutRedirect = () =>
     `${cfg.verimiLogoutUrl}?redirect=${encodeURIComponent(`${cfg.publicBaseUrl}/`)}`;
+
+  // Verimi nur dann im Browser ansteuern, wenn der Dienst erreichbar ist — sonst
+  // würde der Browser auf der Verimi-Fehlerseite landen. Server-seitige Prüfung
+  // über den Container-DNS-Namen (Docker) bzw. localhost (nativ), vgl. API-01.
+  async function verimiLogoutOrHome() {
+    const up = await isReachable(cfg.verimiInternalUrl);
+    return up ? verimiLogoutRedirect() : `${cfg.publicBaseUrl}/`;
+  }
 
   const handleLogout = async (req, res) => {
     const session = getSession(parseCookies(req)[cookieName]);
     let idToken = null;
+    let verifiId = null;
+    let viaVerimi = false;
     if (session) {
-      deleteSession(session.sid);
       idToken = session.idToken ?? null;
+      verifiId = session.verifiId ?? null;
+      viaVerimi = session.viaVerimi === true;
+      deleteSession(session.sid);
       // Fallback OHNE id_token (z. B. reine Verimi-Session in Phase 1): Keycloak
       // würde dann nur mit `client_id` eine Bestätigungsseite zeigen. Deshalb die
       // KC-Session(en) serverseitig per Admin-API beenden.
-      if (!idToken && session.verifiId) {
+      if (!idToken && verifiId) {
         try {
-          const user = await kc.findUserByVerifiId(session.verifiId);
+          const user = await kc.findUserByVerifiId(verifiId);
           if (user?.id) await kc.logoutUser(user.id);
         } catch (err) {
           console.warn('[logout] Keycloak-Session-Revocation fehlgeschlagen:', err.message);
@@ -570,22 +596,28 @@ export const publicRoutes = (app, db) => {
 
     if (!isBrowser(req)) return res.json({ ok: true });
 
-    // Browser-Navigation:
-    // - Mit id_token: sauberer OIDC-Logout (RP-Initiated Logout); Keycloak beendet
-    //   die SSO-Session und leitet an /logout/verimi → Verimi-Logout → Startseite.
-    //   `id_token_hint` verhindert die Keycloak-Logout-Bestätigungsseite.
-    // - Ohne id_token: direkt zur Verimi-SSO-Abmeldung (KC bereits per Admin-API beendet).
+    // Browser-Navigation (ADR-002): Der Abschluss ist IMMER eine Portal-Route.
+    // - Mit id_token: OIDC RP-Initiated Logout; Keycloak beendet die SSO-Session
+    //   und leitet an eine Portal-Route zurück (`id_token_hint` verhindert die
+    //   Keycloak-Logout-Bestätigungsseite). Ziel richtet sich nach der Herkunft.
+    // - Ohne id_token: KC bereits per Admin-API beendet → direkt navigieren.
     if (idToken) {
-      const postLogoutRedirectUri = `${cfg.publicBaseUrl}/logout/verimi`;
+      const postLogoutRedirectUri = viaVerimi
+        ? `${cfg.publicBaseUrl}/logout/verimi`
+        : `${cfg.publicBaseUrl}/logout/done`;
       return res.redirect(kc.buildLogoutUrl({ idTokenHint: idToken, postLogoutRedirectUri }));
     }
-    return res.redirect(verimiLogoutRedirect());
+    return res.redirect(viaVerimi ? await verimiLogoutOrHome() : `${cfg.publicBaseUrl}/`);
   };
   r.get('/api/logout', handleLogout);
   r.post('/api/logout', handleLogout);
 
-  // Zwischenziel nach dem Keycloak-Logout: Verimi-SSO beenden, dann Startseite.
-  r.get('/logout/verimi', (req, res) => res.redirect(verimiLogoutRedirect()));
+  // Verimi-Fall: nach dem Keycloak-Logout noch die Verimi-SSO beenden — aber nur,
+  // wenn Verimi erreichbar ist; sonst direkt zur Startseite.
+  r.get('/logout/verimi', async (req, res) => res.redirect(await verimiLogoutOrHome()));
+
+  // Nicht-Verimi-Fälle (reiner Passkey-/Phase-2-Login): portal-eigener Abschluss.
+  r.get('/logout/done', (req, res) => res.redirect('/'));
 
   app.use(r);
 };

@@ -11,6 +11,7 @@
  *       (Entscheidung 2026-10-08; SSO-Revocation verhindert stillen Re-Login)
  *   T2b „Passkey Login"-Button: username-loser Passkey-Login ohne Verimi (neuer Einstieg)
  *   T2c Sicherheits-Fix: Back-Button nach Logout zeigt keinen geschützten Bereich
+ *   T2d Logout nach Passkey-Login landet auf der Startseite — ohne Verimi-Kontakt (ADR-002)
  *   T3  „Nein"-Pfad: geschützter Bereich ohne Passkey, ohne Fehlermeldung (AC-P2, FR-12)
  *   T4  Phase-2-Login: username-loses WebAuthn (FR-16) — ohne Verimi
  *   T5  Sperr-Demo: Phase 2 + Nutzer ohne Passkey → 403 + Ereignis „blocked" (BE-07, FR-44, AC-3)
@@ -320,6 +321,41 @@ test.describe.serial('Kundenportal-Prototyp (End-to-End)', () => {
     const session = await (await page.request.get('/api/session')).json();
     expect(session.passkey).toBe(true);
     expect(session.display_name).toBe('Erika Mustermann');
+  });
+
+  // -------------------------------------------------------------------------
+  test('T2d Logout nach Passkey-Login landet auf der Startseite — ohne Verimi', async () => {
+    // Kernanforderung (ADR-002): Der Logout ist Verimi-unabhängig. Der reine
+    // Passkey-Login darf beim Abmelden KEINEN Kontakt zu Verimi (:8081) auslösen
+    // und muss auf der Portal-Startseite enden (nicht auf einer Verimi-URL).
+    await page.context().clearCookies();
+    await page.goto(PORTAL);
+    await expect(page.locator('#view-login')).toBeVisible();
+
+    await page.click('#btn-passkey');
+    await passkeyCeremony(page);
+    await expect(page.locator('#view-protected')).toBeVisible();
+
+    // Kontakt zu Verimi während des Logouts beobachten.
+    const verimiHits = [];
+    const onReq = (r) => {
+      if (r.url().includes(':8081')) verimiHits.push(r.url());
+    };
+    page.on('request', onReq);
+    await page.click('#btn-logout');
+    await expect(page.locator('#view-login')).toBeVisible();
+    page.off('request', onReq);
+
+    // Ziel: Portal-Startseite auf :8080 — nicht :8081.
+    expect(new URL(page.url()).host).toBe('localhost:8080');
+    expect(
+      verimiHits,
+      `Kein Verimi-Kontakt beim Logout erwartet, gesehen: ${JSON.stringify(verimiHits)}`
+    ).toEqual([]);
+
+    // Portal-Session ist beendet.
+    const res = await page.request.get('/api/session');
+    expect(res.status()).toBe(401);
   });
 
   // -------------------------------------------------------------------------

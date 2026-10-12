@@ -8,7 +8,8 @@
   der Ausgangszustand wiederhergestellt — ohne manuellen Restore-Schritt.
 
   Aufruf:   powershell -ExecutionPolicy Bypass -File .\stop-native.ps1 [-Keycloak]
-  -Keycloak stoppt zusätzlich den nativen Keycloak-Prozess (java/kc.bat).
+  -Keycloak stoppt zusätzlich den nativen Keycloak-Prozess (java/kc.bat) und den
+  PostgreSQL-Container `prototype-postgres` (falls von start-native.ps1 gestartet).
 #>
 param([switch]$Keycloak)
 $ErrorActionPreference = 'SilentlyContinue'
@@ -60,6 +61,15 @@ Stop-PortListeners @(8080, 8081)
 # --- 2. Keycloak stoppen (optional) -----------------------------------------
 if ($Keycloak) {
   Stop-PortListeners @(8082)
+  # Native PostgreSQL (von start-native.ps1 als Container gestartet) mitbeenden.
+  if (Get-Command docker -ErrorAction SilentlyContinue) {
+    $pgContainer = 'prototype-postgres'
+    $running = (& docker ps --filter "name=^/$pgContainer$" --format '{{.Names}}') 2>$null
+    if ($running -eq $pgContainer) {
+      & docker stop $pgContainer | Out-Null
+      Write-Host "[stop] PostgreSQL-Container $pgContainer gestoppt."
+    }
+  }
 }
 
 Write-Host '[stop] Fertig.'

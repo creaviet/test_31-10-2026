@@ -6,12 +6,16 @@
     - portal-mock  auf Port 8080 (Start-Process, node)
     - Keycloak 26.7.4 auf Port 8082 — automatisch aus <projekt>\prototype\.runtime\kc\
       (KC_HOME überschreibt den Suchpfad)
+    - PostgreSQL auf Port 5432 — Datenbank des Keycloak (ersetzt die H2-Dev-File-DB).
+      Läuft auf 5432 bereits eine Datenbank, wird diese verwendet; sonst wird ein
+      Docker-Container `prototype-postgres` gestartet (Docker Desktop nötig).
 
   Logs: <projekt>\prototype\.runtime\logs\{service}.{stdout,stderr}.log
   Geheimnisse nur über Umgebungsvariablen (keine im Skript).
 
   Aufruf:          powershell -ExecutionPolicy Bypass -File .\start-native.ps1
   Optional:        $env:KC_HOME vorher setzen, um Keycloak mitzustarten.
+  DB-Zugang:       $env:KC_DB_NAME / $env:KC_DB_USER / $env:KC_DB_PASSWORD
 #>
 $ErrorActionPreference = 'Stop'
 
@@ -72,7 +76,42 @@ Start-ServiceNode 'portal' (Join-Path $repoRoot 'portal-mock') @{
   R_OPS_TOKEN = 'dev-rops-token'
 } '8080'
 
-# --- 3. Keycloak (8082) — KC_HOME oder automatisch aus .runtime\kc -----------
+# --- 3. PostgreSQL (5432) — Datenbank des Keycloak (ersetzt H2-Dev-File) -----
+# Keycloak braucht eine erreichbare PostgreSQL. Ist Port 5432 schon belegt, wird
+# diese Instanz verwendet; sonst wird ein Docker-Container gestartet (Docker
+# Desktop ist Projekt-Voraussetzung). Zugangsdaten via KC_DB_* überschreibbar.
+$dbName = if ($env:KC_DB_NAME) { $env:KC_DB_NAME } else { 'keycloak' }
+$dbUser = if ($env:KC_DB_USER) { $env:KC_DB_USER } else { 'keycloak' }
+$dbPass = if ($env:KC_DB_PASSWORD) { $env:KC_DB_PASSWORD } else { 'keycloak' }
+$pgContainer = 'prototype-postgres'
+
+if (Test-PortListening 5432) {
+  Write-Host '[start] PostgreSQL läuft bereits (Port 5432 belegt). Überspringe Start.'
+} else {
+  if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    throw 'PostgreSQL ist auf Port 5432 nicht erreichbar und Docker wurde nicht gefunden. Bitte PostgreSQL starten oder Docker Desktop installieren.'
+  }
+  $existing = (& docker ps -a --filter "name=^/$pgContainer$" --format '{{.Names}}') 2>$null
+  if ($existing -eq $pgContainer) {
+    Write-Host "[start] PostgreSQL-Container $pgContainer wird gestartet ..."
+    & docker start $pgContainer | Out-Null
+  } else {
+    Write-Host "[start] PostgreSQL-Container $pgContainer wird angelegt ..."
+    & docker run -d --name $pgContainer `
+      -e "POSTGRES_DB=$dbName" -e "POSTGRES_USER=$dbUser" -e "POSTGRES_PASSWORD=$dbPass" `
+      -p 5432:5432 postgres:17-alpine | Out-Null
+  }
+  $pgReady = $false
+  for ($i = 0; $i -lt 30; $i++) {
+    & docker exec $pgContainer pg_isready -U $dbUser -d $dbName *> $null
+    if ($LASTEXITCODE -eq 0) { $pgReady = $true; break }
+    Start-Sleep -Seconds 2
+  }
+  if ($pgReady) { Write-Host '[start] PostgreSQL bereit.' }
+  else { Write-Host '[start] WARNUNG: PostgreSQL meldet nach 60 s noch nicht „bereit". Keycloak könnte scheitern.' }
+}
+
+# --- 4. Keycloak (8082) — KC_HOME oder automatisch aus .runtime\kc -----------
 $kcHome = $env:KC_HOME
 if (-not $kcHome) {
   $autoKc = Join-Path $repoRoot '.runtime\kc\keycloak-26.7.4'
@@ -87,6 +126,11 @@ if ($kcHome) {
     Write-Host "[start] Keycloak läuft bereits (Port 8082 belegt). Überspringe Start."
   } else {
     Write-Host '[start] Keycloak wird gestartet ... (Dauer: ~20–40 s, erster Start länger)'
+    # Datenbank-Anbindung: PostgreSQL statt H2-Dev-File (Env VOR Start-Process).
+    $env:KC_DB = 'postgres'
+    $env:KC_DB_URL = "jdbc:postgresql://localhost:5432/$dbName"
+    $env:KC_DB_USERNAME = $dbUser
+    $env:KC_DB_PASSWORD = $dbPass
     $kc = Start-Process -FilePath (Join-Path $kcHome 'bin\kc.bat') `
       -ArgumentList 'start-dev --http-port=8082 --hostname=localhost' `
       -WorkingDirectory $kcHome -WindowStyle Hidden -PassThru `
@@ -106,4 +150,4 @@ if ($kcHome) {
   }
 }
 
-Write-Host '[start] Fertig. Portal: http://localhost:8080 — Verimi: http://localhost:8081 — Keycloak: http://localhost:8082'
+Write-Host '[start] Fertig. Portal: http://localhost:8080 — Verimi: http://localhost:8081 — Keycloak: http://localhost:8082 — PostgreSQL: localhost:5432'

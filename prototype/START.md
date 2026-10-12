@@ -8,6 +8,7 @@ Detaillierte Hintergründe: [`README.md`](README.md) · [`../_keycloak_info/syst
 | portal-mock | 8080 | http://localhost:8080 |
 | verimi-mock | 8081 | http://localhost:8081/login |
 | keycloak | 8082 | http://localhost:8082 (Admin: `/admin`, admin/admin) |
+| postgres | 5432 | localhost:5432 — Datenbank des Keycloak (DB/User `keycloak`, Dev-Passwort `keycloak`) |
 
 Test-User (alle mit Passwort `test`): `erika` (Passkey zurückgesetzt – eigenen registrieren),
 `bob` („Nein"-Pfad), `carol` (Passkey gesetzt), `dan`, `frank`, `gerd`, `hans` (Demo-User).
@@ -25,6 +26,7 @@ powershell -ExecutionPolicy Bypass -File scripts/start-native.ps1
 
 Das Skript:
 - prüft die Ports und überspringt schon laufende Services (kein Doppelstart),
+- startet **PostgreSQL** (Port 5432): nutzt eine bereits laufende DB oder startet den Container `prototype-postgres`,
 - startet verimi-mock → portal-mock → Keycloak (KCI-Start dauert 20–40 s, wartet auf Erreichbarkeit),
 - schreibt Logs nach `.runtime/logs/`.
 
@@ -89,7 +91,8 @@ docker compose ps -a
 docker compose logs keycloak-setup
 ```
 
-Danach laufen alle drei Services über die gleichen Ports wie nativ (8080/8081/8082).
+Danach laufen alle Services über die gleichen Ports wie nativ (8080/8081/8082) — zusätzlich
+läuft **PostgreSQL auf 5432** (Volume `postgres-data`) als Datenbank des Keycloak.
 
 ### Laufender Betrieb
 
@@ -156,9 +159,12 @@ Wechselt sofort, `phase-config.json` wird pro Request neu gelesen.
 | Symptom | Ursache | Abhilfe |
 |---|---|---|
 | Port 8080/8081/8082 belegt | alter Prozess | `scripts/stop-native.ps1` bzw. Prozess auf Port beenden (`Get-NetTCPConnection -LocalPort 8082 -State Listen`) |
+| Port 5432 belegt | andere PostgreSQL-Instanz | wird als Keycloak-DB verwendet — Zugangsdaten ggf. über `KC_DB_USER`/`KC_DB_PASSWORD` setzen |
+| Keycloak startet nicht / DB-Fehler | PostgreSQL nicht bereit | `docker ps` (Container `prototype-postgres` bzw. `prototype-postgres-1`), Logs: `docker logs prototype-postgres` |
 | Portal läuft, Login schlägt fehl | Realm fehlt | `cd keycloak; node setup-realm.mjs` |
+| Nach Logout landet der Browser auf `localhost:8081` statt der Startseite | Logout leitet **unbedingt** über die Verimi-Abmeldung; den Rücksprung zur Startseite führt der Verimi-Mock aus (ADR-002 / R-14) | verimi-mock starten **oder** Fix T-35–T-37 (Logout entkoppeln) |
 | KC-Logs nötig | — | `.runtime/logs/kc.stdout.log`, `kc.stderr.log` |
-| Alles auf Windows zurücksetzen | — | `docker compose down -v` (Docker) bzw. KC-Daten + `data/portal.db` löschen (nativ, `data/` ist Git-ignored) |
+| Alles zurücksetzen | — | Docker: `docker compose down -v` (löscht `postgres-data` + Portal-DB) · native: Container `prototype-postgres` samt Volume + `data/portal.db` löschen |
 | `docker compose` schlägt fehl, Mounts leer | Projekt auf Netzlaufwerk | Offener Fix F1 — siehe oben |
 
 **Hinweise:** Läuft ausschließlich auf localhost. Secrets (`R_OPS_TOKEN`, `VERIMI_HMAC_SECRET`, KC-Admin) sind Dev-Defaults — vor einem Produktivgang ersetzen.

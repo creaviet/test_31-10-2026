@@ -58,7 +58,7 @@ Der kritische Punkt ist nicht Throughput, sondern die **menschliche Migrationsqu
 | Angriffsvektor | Status Prototyp | Maßnahme (Arbeitspaket) |
 |---|---|---|
 | **Dev-Secrets als Code-Fallback** | 🔴 `config.js` Z. 41/58: `dev-rops-token`, `verimi-mock-dev-secret` laufen **ohne** Env-Var still weiter | AP-3: Fail-Fast ohne gesetztes Secret; Secrets aus Vault/Deployment, kein Code-Fallback |
-| **Keycloak im Dev-Modus** | 🔴 `start-dev`, H2-File-DB, `admin/admin`, Issuer `http://localhost:8082` | AP-3: Prod-Modus, echte DB, Admin-Kredentials, strikter Hostname |
+| **Keycloak im Dev-Modus** | 🟡 `start-dev`, `admin/admin`, Issuer `http://localhost:8082` — DB: **PostgreSQL** (ersetzt H2) | AP-3: Prod-Modus, Admin-Credentials, strikter Hostname (DB-Teil erledigt) |
 | **Kein TLS / Secure Context** | 🔴 Nur `localhost` rettet WebAuthn; Issuer+Redirects hard auf localhost | AP-2: HTTPS überall (FE, Portal, KC); WebAuthn scheint produktiv **sonst garantiert** |
 | **Token-Prüfung im geschützten Bereich** | 🟢 serverseitig (T-17) | AP-7: Security-Review AC-2 (T-32) |
 | **User-Enumeration** | 🟢 generische Fehler + Antwortzeit-Toleranzband (T-21) | AP-7: T-33 legt AC-13-Toleranzband fest |
@@ -114,7 +114,7 @@ Bestand (bleibt): SAP (Stammdaten, vgv) ─täglich─▶ SQL (vgv) ─▶ Backu
 ┌───────────────────────┼────────────────────────────────────────────┤
 │ portal-mock (Node)    │──▶ Portalkomponente (Produktiv-Deployment) │
 │ verimi-mock (Node)    │──▶ ENTFÄLDT → echter Verimi-Adapter (T-30) │
-│ keycloak (start-dev)  │──▶ Keycloak Prod-Modus + echte DB (AP-3)   │
+│ keycloak (start-dev)  │──▶ Keycloak Prod-Modus + PostgreSQL (AP-3) │
 │ shared/users.json     │──▶ ENTFÄLDT → Identitäten kommen vom       │
 │                       │    Verimi-Endpoint (OQ-01) ins KC          │
 │ data/portal.db (SQLite)│──▶ beibehalten bei Einzelinstanz,         │
@@ -164,7 +164,7 @@ Bestand (bleibt): SAP (Stammdaten, vgv) ─täglich─▶ SQL (vgv) ─▶ Backu
 ### AP-3 — Sicherheit hart machen
 - **Ziel:** Kein Dev-Zustand kann produktiv laufen.
 - **Inhalt:**
-  - **Keycloak-Hardening:** `start-dev` → Prod-Modus, H2-File → echte DB, `admin/admin` abschaffen, strikter Hostname, Admin-Konsole nur intern
+  - **Keycloak-Hardening:** `start-dev` → Prod-Modus, `admin/admin` abschaffen, strikter Hostname, Admin-Konsole nur intern — DB ist bereits **PostgreSQL**
   - **Secrets:** Fail-Fast, wenn `R_OPS_TOKEN`/`VERIMI_HMAC_SECRET`/KC-Admin fehlen — die hartkodierten Fallbacks (`portal-mock/src/config.js` Z. 41/58, `verimi-mock/src/server.js` Z. 35) raus; Secrets aus Deployment/Vault
   - R-OPS-API nur über TLS mit starkem Token
   - Produktivwerte für Rate-Limiting/Toleranzband (T-20/T-21)

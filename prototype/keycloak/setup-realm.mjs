@@ -307,7 +307,7 @@ async function main() {
       // OIDC-Logout: gültige Post-Logout-Redirect-URI (exakter Treffpunkt, kein
       // Wildcard). KC kennt dafür KEIN Top-Level-Feld, sondern das Client-Attribut
       // `post.logout.redirect.uris` (Mehrfachwerte mit `##` getrennt).
-      'post.logout.redirect.uris': `${PUBLIC_BASE_URL}/logout/verimi`,
+      'post.logout.redirect.uris': `${PUBLIC_BASE_URL}/logout/verimi##${PUBLIC_BASE_URL}/logout/done`,
     },
   });
   console.log(
@@ -334,7 +334,7 @@ async function main() {
     attributes: {
       'pkce.code.challenge.method': 'S256',
       // Siehe portal-mock: Post-Logout-URI als Client-Attribut.
-      'post.logout.redirect.uris': `${PUBLIC_BASE_URL}/logout/verimi`,
+      'post.logout.redirect.uris': `${PUBLIC_BASE_URL}/logout/verimi##${PUBLIC_BASE_URL}/logout/done`,
     },
   });
   console.log('[client] portal-bootstrap vorhanden (Flow: browser/Standard)');

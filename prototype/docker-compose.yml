@@ -1,10 +1,14 @@
-# Passkey-Prototyp — Container-Setup (portal-mock, verimi-mock, Keycloak 26.7.4)
+# Passkey-Prototyp — Container-Setup (portal-mock, verimi-mock, Keycloak 26.7.4, PostgreSQL)
 #
 # Start:      docker compose up -d --build
 # Setup:      einmalig Realm/Flows/Clients/User einspielen (Auto-Setup-Service unten)
 # Logs:       docker compose logs -f portal-mock
-# Stopp:      docker compose down          (Volumes bleiben: KC-Daten + Portal-DB)
-# Rücksetzen: docker compose down -v       (löscht KC-Daten + Portal-DB)
+# Stopp:      docker compose down          (Volumes bleiben: PostgreSQL-KC-DB + Portal-DB)
+# Rücksetzen: docker compose down -v       (löscht PostgreSQL-KC-DB + Portal-DB)
+#
+# Datenbank: Keycloak nutzt PostgreSQL (Service `postgres`, Volume `postgres-data`)
+# statt der eingebetteten H2-Dev-File-DB. Das Keycloak-Schema legt Keycloak beim
+# ersten Start selbst an (Liquibase) — ein früheres H2-Volume ist gegenstandslos.
 #
 # Hinweis Docker vs. URLs: Container erreichen einander über DNS-Namen
 # (keycloak, verimi, portal). Der BROWSER des Nutzers erreicht alles über
@@ -15,6 +19,27 @@
 # und stimmt damit mit KEYCLOAK_PUBLIC_URL überein (jose-Issuer-Check im Portal).
 
 services:
+  # --- Datenbank des Keycloak: PostgreSQL (ersetzt die H2-Dev-File-DB) --------
+  # Keycloak legt sein Schema selbst an (Liquibase). Das Volume `postgres-data`
+  # ist ab jetzt der persistente KC-Datenspeicher.
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
+      POSTGRES_USER: ${KC_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KC_DB_USER:-keycloak} -d ${KC_DB_NAME:-keycloak}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4
     command:
@@ -27,10 +52,19 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASS:-admin}
+      # Externe PostgreSQL statt H2-Dev-File-DB (Service `postgres`).
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KC_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
     ports:
       - '8082:8082'
     volumes:
+      # Nur noch Nicht-DB-Daten (tmp/Uploads) — die DB liegt im Volume postgres-data.
       - keycloak-data:/opt/keycloak/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       # Zwei Fallstricke: (1) /health/ready liegt am Management-Interface Port 9000,
       # NICHT am HTTP-Port 8082 (der antwortet dort mit 404). (2) Das KC-Image
@@ -112,3 +146,4 @@ services:
 
 volumes:
   keycloak-data:
+  postgres-data:

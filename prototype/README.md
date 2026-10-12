@@ -8,12 +8,16 @@ Lauffähiger Prototyp für die Passkey-Anmeldung am Kundenportal:
 - **Keycloak 26.7.4** — Passkey-Registrierung (Variante A: Impersonation + Required
   Action `webauthn-register-passwordless` + SSO-Cookie) und Passkey-Login
   (`webauthn-authenticator-passwordless`, username-lose/discoverable)
+- **PostgreSQL 17** — Datenbank des Keycloak (ersetzt die eingebettete H2-Dev-File-DB).
+  Keycloak legt sein Schema selbst an; das Volume `postgres-data` ist der persistente
+  KC-Datenspeicher.
 
 | Komponente | Port | Erreichbar unter |
 |---|---|---|
 | Portal | 8080 | http://localhost:8080 |
 | Verimi-Mock | 8081 | http://localhost:8081/login |
 | Keycloak | 8082 | http://localhost:8082 (Admin-Konsole `/admin`, admin/admin) |
+| PostgreSQL (KC-DB) | 5432 | localhost:5432 (DB/User `keycloak`, Dev-Passwort `keycloak`) |
 | KC-Account | – | http://localhost:8082/realms/passkey-prototyp/account |
 
 ## Phasen (T-02: Phasenschalter = Konfigurationsdatei)
@@ -43,7 +47,9 @@ curl -X PUT -H "Authorization: Bearer dev-rops-token" -H "Content-Type: applicat
 
 ## Start NATIV (Windows/PowerShell — ohne Docker)
 
-Voraussetzungen: Node ≥ 22 (getestet mit v26.10.0), JDK 21. Die Keycloak-26.7.4-Distribution
+Voraussetzungen: Node ≥ 22 (getestet mit v26.10.0), JDK 21, **Docker Desktop** (nur für die
+PostgreSQL: ist auf Port 5432 noch keine Datenbank erreichbar, startet `start-native.ps1`
+automatisch den Container `prototype-postgres`). Die Keycloak-26.7.4-Distribution
 liegt projektlokal unter `prototype\.runtime\kc\keycloak-26.7.4` (wird automatisch gefunden —
 kein `KC_HOME` nötig; ein gesetztes `KC_HOME` gewinnt). Logs landen in
 `prototype\.runtime\logs\` (alles unter `.runtime\` ist gitignored und liegt NICHT auf C:).
@@ -86,8 +92,12 @@ cp .env.example .env      # Werte bei Bedarf anpassen
 docker compose up -d --build
 docker compose logs -f portal-mock
 docker compose down       # Daten bleiben (Volumes)
-docker compose down -v    # + komplette Rücksetzung (KC-Daten, Portal-DB)
+docker compose down -v    # + komplette Rücksetzung (PostgreSQL-KC-DB, Portal-DB)
 ```
+
+Der Stack enthält einen **`postgres`**-Service (Port 5432, Volume `postgres-data`) als
+Datenbank des Keycloak; Keycloak wartet per `depends_on: service_healthy` auf dessen
+Bereitschaft und legt sein Schema beim ersten Start selbst an.
 
 Der `keycloak-setup`-Service läuft einmalig nach jedem `up` (idempotent) und spielt
 Realm/Flows/Clients/Test-User ein. **Wichtig (URL-Splitting):** Server-seitig nutzt das
@@ -186,8 +196,18 @@ Authenticator (CTAP2, resident, user-verified) auf einer gemeinsamen Flow-Seite
   Session wird dafür gespeichert. `id_token_hint` ist zwingend: ohne ihn rendert
   Keycloak 26.2+ eine Logout-Bestätigungsseite und leitet nicht automatisch weiter.
   Für reine Verimi-Sessions (kein `id_token`) wird die Keycloak-Session ersatzweise
-  serverseitig per Admin-API (`users/{id}/logout`) beendet. Danach Verimi-SSO via
-  Redirect. Erst so ist ein erneuter Login wieder zugangsdaten-pflichtig.
+  serverseitig per Admin-API (`users/{id}/logout`) beendet. Erst so ist ein
+  erneuter Login wieder zugangsdaten-pflichtig.
+  - **Ziel (ADR-002, geplant in T-35…T-37):** Der Logout ist **portal-eigen** und
+    **Verimi-unabhängig**: die Rückleitung zur Startseite kommt aus dem Portal
+    (festes Ziel `${PUBLIC_BASE_URL}/`), die Verimi-Abmeldung läuft **nur** bei
+    einer echten Verimi-Session und ist fehlertolerant, wenn Verimi nicht
+    erreichbar ist.
+  - **Aktueller Stand (Prototyp):** Der Logout leitet noch **unbedingt** über die
+    Verimi-Abmeldung; den Rücksprung zur Startseite führt der **Verimi-Mock** aus
+    (`?redirect=…`). Ist der Verimi-Mock gestoppt, bleibt der Browser deshalb auf
+    `http://localhost:8081/logout?...` stehen und erreicht die Startseite nicht
+    (siehe `R-14` in `docs/risks.md`).
 - **Geschützter Bereich & Cache:** Das SPA-Dokument und alle `/api/*`-Antworten sind
   `Cache-Control: no-store`; der geschützte Bereich wird erst nach erfolgreicher
   Autorisierung (`/api/session`) per `<template>` erzeugt. Zusätzlich revalidiert das
@@ -195,5 +215,8 @@ Authenticator (CTAP2, resident, user-verified) auf einer gemeinsamen Flow-Seite
   die Browser-History sichtbar.
 - Secrets (`R_OPS_TOKEN`, `VERIMI_HMAC_SECRET`, KC-Admin) sind Entwicklungs-Defaults —
   vor einem Produktivgang ersetzen.
+- **Keycloak-Datenbank:** PostgreSQL (Volume `postgres-data`); Schema und Inhalt legt
+  Keycloak selbst an. Einsehen z. B. mit
+  `docker compose exec postgres psql -U keycloak -d keycloak -c "\dt"`.
 - Der Phasenschalter ist bewusst eine **Datei** (T-02); die R-OPS-API schreibt sie.
 - Das Ereignis-Log liegt in `data/portal.db` (SQLite, append-only, pseudonymisiert).
