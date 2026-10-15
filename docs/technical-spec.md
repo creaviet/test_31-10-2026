@@ -1,6 +1,6 @@
 # Technical Specification — Passkey-Login für das Kundenportal
 
-Stand: 2026-10-06 · Quelle: `prd.md` (2026-10-06), `intent.md`, `requirements.md`
+Stand: 2026-10-15 (Doku-Sync mit dem Prototyp-Code: ADR-001 `portal_identity`, zwei Login-Einstiege seit 2026-10-08, Phasenkonfiguration als Datei; Session-TTL 15 Min; API-03/API-04-Antwortformen, Prototype-internal endpoints, KC-Clients/Impersonation) · Quelle: `prd.md` (2026-10-06), `intent.md`, `requirements.md`
 Status: **Entwurf** · Kein Implementierungscode — jede Entscheidung ist so formuliert, dass sie später als Aufgabe und Test umgesetzt wird.
 
 > **Scope-Grenze (aus PRD §7):** Enthalten ist die Software dieses Projekts — Login-Einstieg, Phasenschalter, Passkey-Registrierung, Passkey-Login, Sperrlogik, Identitätsdaten, Betrieb. **Nicht enthalten:** manuelle Reaktivierung Gruppe B, Migrationsquote-Reporting, Hochverfügbarkeit, Recovery, Mobil, Support-Prozess.
@@ -21,7 +21,7 @@ Primary users:
 - Datenschutzverantwortlicher — nur als Prüfer, kein interagierender Nutzer
 
 Core capabilities:
-- Ein einziger Login-Einstieg, der je nach Phasenkonfiguration zu Verimi (Phase 1) oder Keycloak/Passkey (Phase 2) führt
+- Zwei dokumentierte Login-Einstiege: „Anmelden" führt je nach Phasenkonfiguration zu Verimi (Phase 1) oder Keycloak/Passkey (Phase 2); „Passkey Login" führt direkt zum Passkey-Weg (Entscheidung 2026-10-08, früher FR-03 „genau ein Einstieg")
 - Nach Rückkehr von Verimi: Prüfung, ob ein Passkey registriert ist; Registrierungsfrage stellen (bei jedem Login, bis registriert)
 - Passkey-Registrierung mit vorbefüllten Daten (Nachname, Vorname, E-Mail) — nur in authentifizierter Session
 - Passkey-Login und Token-Prüfung im Portal
@@ -36,7 +36,7 @@ This system does not include manuelle Reaktivierung Gruppe B (organisatorischer 
 External dependencies:
 - **Keycloak (on-premise)** — Identity Provider für Passkeys/WebAuthn, Speicherort der Identitätsdaten und Credentials, Aussteller der Token (C-P.3, ARCH-03)
 - **Verimi (Phase 1)** — authentifiziert im alten Weg und leitet zurück; im Prototyp durch den austauschbaren Verimi-Mock ersetzt (C-P.2, C-P.5)
-- **Kundenportal (bestehend)** — ruft den Login-Einstieg auf, zeigt den geschützten Bereich; wird nur über den einen Einstieg angebunden (FR-03)
+- **Kundenportal (bestehend)** — ruft den Login-Einstieg auf, zeigt den geschützten Bereich; wird nur über die dokumentierten Einstiege angebunden (FR-01/FR-03)
 - **WebAuthn-Plattform der Desktop-Browser** — Windows/macOS mit Chrome, Edge, Safari, Firefox (NFR-Env-01)
 - **Hosting-Plattform** — noch offen (OQ-04/OQ-06)
 - **Aktiver Rückruf** — wird durch den Auftraggeber ausgeführt; die Software liefert nur die Fehlfallliste (FR-72, OQ-16)
@@ -86,12 +86,12 @@ Einfache Web-Anwendung im Client-Server-Stil (kein Microservice-Aufbau, keine Me
 
 | Komponente | Owns (zuständig) | Must not own (nicht zuständig) |
 |---|---|---|
-| **Portal-Frontend** | Ein Login-Einstieg, Registrierungsfrage und -formular, Anzeige der Fehlermeldungen, geschützter Bereich | Keine Entscheidung über die Phase, keine Speicherung von Identitätsdaten, keine Prüfung ob Passkey existiert |
+| **Portal-Frontend** | Zwei Login-Einstiege („Anmelden" phasengesteuert, „Passkey Login" direkt), Registrierungsfrage und -formular, Anzeige der Fehlermeldungen, geschützter Bereich | Keine Entscheidung über die Phase, keine persistente Speicherung von Identitätsdaten, keine Prüfung ob Passkey existiert |
 | **Portal-Backend** | Phasenentscheidung (liest Konfiguration), Passkey-Vorhandensein-Prüfung anhand der Verifi-Kennung, Registrierungssteuerung (Session-Pflicht), Sperrlogik + Protokollierung, Token-Prüfung, Rate-Limiting | Kein Speicherort der Passkey-Geheimnisse, keine Benutzerverwaltung, keine Fachlogik des Portals |
 | **Keycloak (on-prem)** | Passkey/WebAuthn, Identitätsdaten (drei Felder), Credential-Metadaten, Token-Ausgabe | Keine Phasenentscheidung, keine Sperrlogik des Portals, keine Portal-Fachdaten |
 | **Verimi(-Mock)** | Authentifizierung im alten Weg und Rückleitung (Phase 1); Mock: vorabgefüllte User-DB, Weiterleitung auf konfigurierbare URL | Kein Passkey, keine Identitätsdaten für Phase 2 |
 | **Konfiguration (Phasenschalter)** | Der Wert „phase1/phase2" mit Zeitstempel und Wer-hat-es-gesetzt-Protokoll | Nicht im Code hartkodiert, kein Datenbank-Objekt der Fachentität |
-| **Datenbank des Portal-Backends** | Phasenkonfiguration, Ereignis-Protokolle, Erreichbarkeitstest-Ergebnisse | Keine Identitätsfelder (leben in Keycloak), keine Passkey-Geheimnisse |
+| **Datenbank des Portal-Backends** | Ereignis-Protokolle, Erreichbarkeitstest-Ergebnisse, Portal-Identität `portal_identity` (Anzeigename, ADR-001) | Keycloak bleibt autoritative Identitätsquelle; Schlüssel ist die pseudonymisierte Referenz (kein Klartext-Identifikator), keine Passkey-Geheimnisse |
 
 **Data flow (vom Nutzerhandlung bis zur Antwort):**
 
@@ -110,8 +110,8 @@ Einfache Web-Anwendung im Client-Server-Stil (kein Microservice-Aufbau, keine Me
 
 | Zustand | Wo er liegt | Wer ändert ihn |
 |---|---|---|
-| Phasenschalter (phase1/phase2) | Konfiguration des Portal-Backends (Form siehe OQ-TS-2) | R-OPS über Admin-Schnittstelle, mit Protokoll |
-| Identität (Nachname, Vorname, E-Mail) | Keycloak | Nur bei Registrierung; Änderbarkeit offen (OQ-17) |
+| Phasenschalter (phase1/phase2) | Konfigurationsdatei `phase-config.json` des Portal-Backends (T-02-Entscheidung) | R-OPS über Admin-Schnittstelle, mit Protokoll |
+| Identität (Nachname, Vorname, E-Mail) | Keycloak (autoritativ) · Kopie in `portal_identity` der Portal-DB für den Anzeigenamen (ADR-001) | Keycloak bei Registrierung; `portal_identity` als idempotenter Upsert bei jedem erfolgreichen Login; Änderbarkeit offen (OQ-17) |
 | Passkey-Credential + Metadaten | Keycloak (Endgerät hält das Geheimnis) | Nur Nutzer-Registration, nie durch Support |
 | Ereignis-Protokolle (Registrierung, Anmeldung, Sperrung, Betrieb) | Datenbank des Portal-Backends | Nur append-only durch das System |
 | Erreichbarkeitstest-Ergebnisse | Datenbank des Portal-Backends | Nur durch R-OPS-Testlauf |
@@ -133,13 +133,13 @@ Einfache Web-Anwendung im Client-Server-Stil (kein Microservice-Aufbau, keine Me
 ### Screens and pages
 
 **Screen: Login-Einstieg**
-Purpose: Genau ein Einstiegspunkt, der je Phase umleitet.
+Purpose: Zwei dokumentierte Einstiegspunkte — „Anmelden" leitet je Phase um, „Passkey Login" führt direkt zum Passkey-Weg (Entscheidung 2026-10-08).
 Fields: keine Eingabefelder (kein Benutzername/Passwort-Feld — Passkey ersetzt das).
 States:
 - Loading: Zwischenklick bis Redirect „Einen Moment …", Button gesperrt gegen Doppelklick
 - Error: Redirect fehlgeschlagen → verständliche Meldung, kein Fehlercode
 - Permission denied: n/a (Einstieg ist öffentlich)
-Actions: „Anmelden" klicken → Redirect (FR-03, API-01).
+Actions: „Anmelden" klicken → Redirect je Phase (FR-03, API-01); „Passkey Login" klicken → direkter Redirect zum Keycloak-Passkey-Flow (FR-01).
 
 **Screen: Registrierungsfrage (Phase 1, kein Passkey vorhanden)**
 Purpose: Nutzer entscheidet, ob er sich jetzt registriert.
@@ -182,7 +182,7 @@ States: Error (gesperrt), Logging der Ursache „mangels Passkey" (FR-44).
 
 | Component | Einsatz | Regeln |
 |---|---|---|
-| Login-Button | Login-Einstieg | Genau einer im Portal, kein zweiter undokumentierter Weg (FR-03) |
+| Login-Buttons | Login-Einstieg | Genau die beiden dokumentierten Wege „Anmelden" und „Passkey Login", kein weiterer undokumentierter Weg (FR-01/FR-03, Entscheidung 2026-10-08) |
 | Frage-Karte „Ja/Nein" | Registrierungsfrage | Zwei Aktionen, gleiche Größe, kein vorausgewähltes „Ja" |
 | Vorbefülltes Formular | Registrierungsformular | Drei readonly Felder, Submit-Button „Passkey anlegen" |
 | Fehler-Banner | alle Screens | Text statt Fehlercode, nie Stacktrace, keine Existenzauskunft (NFR-Sec-04) |
@@ -192,7 +192,8 @@ States: Error (gesperrt), Logging der Ursache „mangels Passkey" (FR-44).
 
 | Aktion | Ergebnis |
 |---|---|
-| „Anmelden" | Redirect je Phase (kein zweiter Pfad) |
+| „Anmelden" | Redirect je Phase |
+| „Passkey Login" | Direkter Redirect zum Keycloak-Passkey-Flow (Entscheidung 2026-10-08) |
 | „Ja, registrieren" | Formular → WebAuthn-Registrierung → geschützter Bereich |
 | „Nein" | Geschützter Bereich, Frage kommt beim nächsten Login wieder |
 | Direktaufruf einer geschützten URL ohne Token | Abweisung (401) |
@@ -255,16 +256,26 @@ Plain-Language-Regeln — jede wird später Aufgabe + Test.
 
 ## 5. Database Requirements
 
-### Entity: Identität (Speicherort: Keycloak)
-Purpose: Speichert die migrierte Identität — der einzige Identitätsspeicher nach dem Stichtag.
+### Entity: Identität (Speicherort: Keycloak — autoritativ)
+Purpose: Speichert die migrierte Identität — die autoritative Identitätsquelle nach dem Stichtag. Eine lesbare Kopie für den Anzeigenamen hält zusätzlich `portal_identity` in der Portal-DB (ADR-001, siehe unten).
 Fields:
 - `verifi_id`: Pflicht, eindeutig, nicht erratbar — verknüpft Portal-Zugang und Passkey; vom Nutzer nicht veränderbar (FR-61, BR-08)
 - `nachname`: Pflicht, Text
 - `vorname`: Pflicht, Text
 - `email`: Pflicht, Text, Formatprüfung
-- `created_at`: Pflicht, Zeitstempel der Registrierung (FR-18)
+- `created_at`: Zeitstempel der Registrierung (FR-18) — im Prototyp realisiert über Keycloaks nutzer-eigenes `createdTimestamp` und das Registrierungsereignis im `event_log`; ein eigenes Feld `created_at` wird nicht geführt (die Portal-Kopie `portal_identity` nutzt `updated_at`, Passkey-Vorhandensein markiert das KC-Attribut `passkey_registered`).
 Constraints: genau diese drei Identitätsfelder — keine Kundennummer, keine Ausweisdaten, keine Adesso-Verknüpfung (FR-60, CO-09); **kein** Feld für Passkey-Geheimnisse (das Geheimnis verlässt das Endgerät nie, NFR-Sec-02); Verschlüsselung im Ruhezustand (NFR-DS-02).
 Retention/deletion: Lösch-/Aufbewahrungskonzept nach dem Stichtag ist offen (OQ-08/OQ-09), bis dahin kein Löschen ohne AVV-Entscheid (NFR-DS-03/04, AC-16).
+
+### Entity: Portal-Identität `portal_identity` (Speicherort: Portal-DB)
+Purpose: Hält den Anzeigenamen des geschützten Bereichs, unabhängig vom Login-Weg (ADR-001, 2026-10-09).
+Fields:
+- `reference`: Pflicht, eindeutig — pseudonymisierte Referenz (`SHA-256(Verifi-Kennung)[0:16]`), **kein** Klartext-Identifikator
+- `first_name`, `last_name`: Pflicht, Text (Kopie aus der Verimi-Rückkehr bzw. dem Keycloak-Profil)
+- `email`: Pflicht, Text
+- `updated_at`: Pflicht, Zeitstempel (idempotenter Upsert bei jedem erfolgreichen Login)
+Constraints: **bewusste Abweichung** von der früheren Regel „keine Identitätsfelder in der Portal-DB" (DB-01/NFR-DS-01) auf Entscheidung des Projektträgers; Keycloak bleibt die autoritative Quelle. Keine weiteren Identitäts-/Ausweisfelder, keine Passkey-Geheimnisse. Die drei Felder liegen als PII im Klartext vor und sind in Backup, Retention (OQ-09) und Verschlüsselung im Ruhezustand (NFR-DS-02) einzubeziehen (ADR-001).
+Relationships: 1:1 zur Identität (Keycloak) über die pseudonymisierte Referenz; kein Fremdschlüssel auf eine Klartext-Kennung.
 
 ### Entity: Passkey-Credential (Speicherort: Keycloak)
 Purpose: Metadaten des registrierten Passkeys.
@@ -276,14 +287,14 @@ Fields:
 Constraints: 1:1 zu Identität — genau ein Credential pro Endnutzer (BE-05, FR-33); **kein** Secret-Feld (DB-04).
 Relationships: One identity has exactly one credential (in this version).
 
-### Entity: Phasenkonfiguration (Speicherort: Portal-DB)
-Purpose: Der Phasenschalter als prüfbarer Zustand.
+### Entity: Phasenkonfiguration (Speicherort: Konfigurationsdatei, nicht Portal-DB)
+Purpose: Der Phasenschalter als prüfbarer Zustand — per T-02-Entscheidung als Konfigurationsdatei `phase-config.json` geführt, **nicht** als DB-Tabelle.
 Fields:
 - `phase`: Pflicht, gültige Werte `phase1` | `phase2`
 - `changed_at`: Pflicht, Zeitstempel
 - `changed_by`: Pflicht, R-OPS-Kennung (Nachvollziehbarkeit, PR-07)
 - `reason`: Pflicht, Text (Begründung der Umschaltung)
-Constraints: genau ein aktiver Satz; jede Änderung wird zusätzlich ins Ereignis-Protokoll geschrieben (API-06).
+Constraints: genau ein aktiver Zustand in der Datei; Schreiben nur atomar (temporäre Datei + rename) und nur durch R-OPS über `PUT /api/admin/phase` (API-06); jede Änderung wird zusätzlich ins Ereignis-Protokoll geschrieben.
 
 ### Entity: Ereignis-Protokoll (Speicherort: Portal-DB)
 Purpose: Nachvollziehbarkeit sicherheitsrelevanter Ereignisse.
@@ -302,12 +313,12 @@ Fields:
 - `run_id`: Pflicht, eindeutig
 - `started_at` / `finished_at`: Pflicht
 - `checked_count`: Pflicht, Zahl
-- `failed_credentials`: Liste der Fehlfälle (Credential-IDs, exportierbar) (FR-72)
+- `failed_credentials`: Liste der Fehlfälle als Objekte `{ reference, credential_id }` (exportierbar, FR-72). `reference` = pseudonymisierte Referenz (`SHA-256(verifi_id)[0:16]`). **`credential_id` ist im Prototyp `null`**, wenn für den Nutzer gar kein WebAuthn-Credential existiert — genau das ist der Fehlfall des Tests (der zuvor vermutete Fall „Credential vorhanden, aber nicht benutzbar" wird vom Prototyp-Verfahren nicht erfasst; das Verfahrensdetail bleibt OQ-TS-3).
 Constraints: nur R-OPS lesbar; enthält keine Passkey-Geheimnisse.
 
 ### Constraints, indexes, limits (quer)
 - Index/Suchfelder: `verifi_id` (einzelner Lookup bei jedem Login — häufigster Zugriff), `credential_id` (Erreichbarkeitstest-Batch), `event_type + occurred_at` (Protokollauswertung).
-- Keine Speicherung von Identitätsdaten im Portal-Backend (nur Keycloak) — Datenminimierung (NFR-DS-01).
+- Identitätsdaten liegen **autoritativ** in Keycloak; zusätzlich hält die Portal-DB `portal_identity` (Nachname/Vorname/E-Mail) als Anzeigename-Kopie mit pseudonymisiertem Schlüssel — bewusste Abweichung von der früheren Regel „keine Identitätsdaten im Portal-Backend" (ADR-001). Die Datenminimierung bleibt über die Beschränkung auf exakt drei Felder gewahrt (NFR-DS-01).
 - Skalierung: Auslegung für 120.000 Identitätsdatensätze und 80.000 Passkeys (DB-07, NFR-Perf-01).
 - **Backup/Restore:** vor Produktivgang einmal vollständig durchgespielt, **gemessene** Wiederherstellungszeit dokumentiert, Wiederanlauf bis Anmeldefähigkeit geprüft (FR-91/FR-92, AC-6).
 - **Keine Tabellen für:** Migrationsquote/Reporting, Reaktivierung, Entitlements, Kundennummern (PRD §7, CO-12, PR-06).
@@ -324,12 +335,31 @@ Constraints: nur R-OPS lesbar; enthält keine Passkey-Geheimnisse.
 |---|---|---|---|---|---|---|---|
 | **API-01** | `GET /api/auth/start` | Phasenschalter lesen und Redirect-Ziel liefern | öffentlich | keine | `200 { phase, redirect_url }` | 500, 503 | — |
 | **API-02** | `GET /api/auth/verimi/callback` | Rückkehr von Verimi: Verifi-Kennung prüfen, Passkey-Vorhandensein + ggf. Vorbefüllung liefern | Sitzung des gerade authentifizierten Nutzers | Query: `verifi_id` (string) | `200 { passkey_exists, prefill? : { first_name, last_name, email } }` | 400 (fehlend/ungültig — generische Meldung), 401, 429, 500 | `verifi_id` Pflicht, Format, nicht erratbar (FR-10) |
-| **API-03** | `POST /api/registration` | Passkey-Registrierung anstoßen | **gültige, dem Nutzer zugeordnete authentifizierte Session** (FR-15) | `{ first_name, last_name, email }` | `201 Created { registration_id, ceremony }` | 400 (ungültige Felder), 401 (keine Session), 403 (fremde Session), 429, 500 | Genau drei Felder, Pflicht, E-Mail-Format, Längenlimits (FR-14, AC-P4) |
-| **API-04** | `GET /api/session` | Daten des geschützten Bereichs | gültiges Token | keine | `200 { display_name, … }` | 401 (kein/ungültiges Token), 403 (gesperrt, FR-40), 500 | Token serverseitig prüfen: Aussteller, Signatur, Laufzeit (FR-32) |
+| **API-03** | `POST /api/registration` | Passkey-Registrierung anstoßen | **gültige, dem Nutzer zugeordnete authentifizierte Session** (FR-15) | `{ first_name, last_name, email }` | `201 Created { registration_id, ceremony: { mode, redirect_to } }` — `mode ∈ {keycloak-required-action, keycloak-sso}`, `redirect_to` = Portal-Weiterleitung in den Keycloak-Registrierungsflow (`/api/auth/kc/start?context=register`) | 400 (ungültige Felder), 401 (keine Session), 403 (fremde Session), 429, 500 | Genau drei Felder, Pflicht, E-Mail-Format, Längenlimits (FR-14, AC-P4) |
+| **API-04** | `GET /api/session` | Daten des geschützten Bereichs | gültiges Token | keine | `200 { display_name, phase, passkey }` — `display_name` aus `portal_identity` (ADR-001), `phase` = aktuelle Phase, `passkey` = ob die Session passkey-authentifiziert ist | 401 (kein/ungültiges Token), 403 (gesperrt, FR-40), 500 | Token serverseitig prüfen: Aussteller, Signatur, Laufzeit (FR-32) |
 | **API-05** | `GET /api/admin/phase` | Phasenschalter lesen | R-OPS | keine | `200 { phase, changed_at, changed_by, reason }` | 401, 403, 500 | — |
 | **API-06** | `PUT /api/admin/phase` | Phasenschalter setzen (Umschalten/Rückstellung) | R-OPS | `{ phase, reason }` | `200 { phase, changed_at, changed_by }` | 400 (ungültiges `phase`), 401, 403, 409, 500 | `phase ∈ {phase1, phase2}`, `reason` Pflicht; Änderung wird protokolliert (FR-01/FR-42, PR-07) |
 | **API-07** | `POST /api/admin/reachability-test` | Erreichbarkeitstest starten | R-OPS | keine | `202 Accepted { run_id }` | 401, 403, 409 (läuft bereits), 500 | Nur R-OPS (FR-71) |
 | **API-08** | `GET /api/admin/reachability-results` | Ergebnis + exportierbare Fehlfallliste | R-OPS | keine | `200 { summary, failures[] }` | 401, 403, 404, 500 | Enthält keine Geheimnisse (FR-72) |
+
+### Prototype-internal endpoints (Ablaufwehre)
+
+Diese Endpunkte sind **nicht** Teil des normativen API-Vertrags (API-01..API-08),
+sondern die im Prototyp für den Browser-Flow nötigen Ablaufwehre. Sie sind
+vollständig in `auth-sequence-diagrams.md` und `prototype/README.md` beschrieben;
+ein späterer server-basierter OIDC-Aufbau würde sie ersetzen. Aufgeführt für die
+Nachvollziehbarkeit der Endpunkt-Oberfläche (Gap M1).
+
+| Nr. | Method and path | Purpose | Authentication | Success response |
+|---|---|---|---|---|
+| **INT-01** | `GET /api/auth/prefill` | Vorbefüllung des Registrierungsformulars aus der Session | Session (`portal_sid`) | `200 { prefill }` · 401 |
+| **INT-02** | `GET /auth/decision/no` | „Nein"-Pfad der Registrierungsfrage (FR-12/AC-P2) | Session | `302 /?v=protected` · `302 /` |
+| **INT-03** | `GET /api/auth/kc/start` | Zentraler Keycloak-Einstieg: Phase-2-Login, „Passkey Login" und Registrierung (`?context=login\|register`) | öffentlich (login) / Registrierungssession (register) | `302` zu Keycloak (PKCE S256, `state=portal_sid`) |
+| **INT-04** | `GET /api/auth/kc/callback` | OIDC-Callback: Code-Tausch, Token-Prüfung, Session-Bindung | `state` (= `portal_sid`) + PKCE-Verifier | `302 /?v=protected` · Fehler → `/?v=error&m=…` |
+| **INT-05** | `GET`/`POST /api/logout` | Logout Portal + Keycloak (+ Verimi nur bei `viaVerimi`) — siehe ADR-002 | Session (optional) | `302` (Portal-Route) · JSON `{ ok: true }` |
+| **INT-06** | `GET /logout/verimi` | Verimi-Fall-Abschluss (nur bei Verimi-Session, fehlertolerant) | — | `302` → Verimi `/logout` bzw. Portal `/` |
+| **INT-07** | `GET /logout/done` | Portal-eigener Logout-Abschluss (Nicht-Verimi-Fälle) | — | `302 /` |
+| **INT-08** | `GET /api/admin/events` | Ereignisprotokoll für Abnahme-Nachweise (AC-3/AC-14) — **nicht** in §6 normiert | R-OPS | `200 { events }` |
 
 ### API contract examples
 
@@ -348,8 +378,15 @@ Request:
 Success response: 201 Created
 {
   "registration_id": "…",
-  "ceremony": { … }            ← WebAuthn-Parameter für den Browserdialog
+  "ceremony": {
+    "mode": "keycloak-required-action",   ← oder "keycloak-sso", wenn bereits ein Passkey existiert
+    "redirect_to": "…/api/auth/kc/start?context=register"
+  }
 }
+// Hinweis: `ceremony` ist im Prototyp KEINE rohe WebAuthn-Parameterliste, sondern
+// die Weiterleitung in den Keycloak-Registrierungsflow (Variante A: Impersonation +
+// Required Action `webauthn-register-passwordless`). Die WebAuthn-Parameter selbst
+// erzeugt Keycloak im Browser-Dialog (Details: `auth-sequence-diagrams.md`, Ablauf A2).
 
 Error responses:
   400  Ungültige/fehlende Felder        → Meldung ohne Existenzauskunft
@@ -397,10 +434,12 @@ Validation: Enum-Prüfung, reason Pflicht, min. 5 Zeichen.
 |---|---|
 | Provider | Keycloak on-prem (C-P.3) |
 | Purpose | Passkey/WebAuthn, Identitätsspeicher, Token-Ausgabe |
+| Clients (Prototyp) | Drei OIDC-Clients: **`portal-mock`** (Login, Flow `browser-passkey`, username-los), **`portal-bootstrap`** (erste Passkey-Registrierung, Standard-`browser`-Flow, damit die Required Action `webauthn-register-passwordless` rendert), **`portal-admin`** (Admin-API: User-/Credential-Verwaltung, Impersonation). Realm/Flows/Clients/Test-User werden idempotent per `keycloak/setup-realm.mjs` eingespielt. |
+| Registration mechanism | Variante A (KC 26.7): zuerst `setRequiredAction('webauthn-register-passwordless')`, dann **Impersonation** (`POST /users/{id}/impersonation`) — das Portal reicht die SSO-`Set-Cookie` des Impersonation-Aufrufs an den Browser weiter (SSO-Cookie-Relay), sodass der Registrierungsflow ohne erneuten Passkey-Login startet. |
 | Data sent | Nur die drei Felder `first_name, last_name, email` bei der Registrierung (API-03/FR-14) |
 | Data received | Registrierungs-/Login-Bestätigung und Token (Aussteller, Signatur, Laufzeit, Kennung) |
-| Failure behavior | Keycloak nicht erreichbar → Portal-Login sofort nicht möglich (bewusst, NFR-AV-02) → verständliche Wartemeldung, Alarm an R-OPS (FR-94), keine Alternative anbieten |
-| Security rule | Keine Secrets im Frontend, Token niemals im Klartext speichern oder in Logs schreiben; Kommunikation ausschließlich TLS (NFR-Sec-03); kein Recovery-Kanal (BR-03) |
+| Failure behavior | Keycloak nicht erreichbar → Portal-Login sofort nicht möglich (bewusst, NFR-AV-02) → verständliche Wartemeldung, Alarm an R-OPS (FR-94), keine Alternative anbieten. Bei der Registrierung ist die Passkey-Vorhandenseins-Prüfung **best-effort**: ein KC-Ausfall darf eine bereits erfolgreiche Verimi-Anmeldung nicht brechen. |
+| Security rule | Keine Secrets im Frontend, Token niemals im Klartext speichern oder in Logs schreiben; Kommunikation ausschließlich TLS (NFR-Sec-03); kein Recovery-Kanal (BR-03); Token-Prüfung serverseitig (Issuer/JWKS/`azp` + `aud`-Whitelist, PKCE S256). |
 
 **Keine API für:** Migrationsquote/Reporting, Reaktivierung am Schalter, E-Mail-Versand, Recovery (PRD §7).
 
@@ -412,7 +451,7 @@ Validation: Enum-Prüfung, reason Pflicht, min. 5 Zeichen.
 |---|---|
 | Authentication | Phase 2: Anmeldung nur mit gültigem, nicht abgelaufenem, korrekt signiertem Token von Keycloak — serverseitig geprüft (BE-08/FR-32, AC-2/AC-P6). Phase 1: Verimi-Rückkehr nur mit gültiger Verifi-Kennung (API-02). |
 | Authorization | Registrierung nur in der eigenen authentifizierten Session — kein Passkey für ein fremdes Konto (SEC-01/FR-15, AC-P8). Betriebsfunktionen nur R-OPS. **Keine** Rolle darf Passkey-Geheimnisse einsehen — diese Zelle bleibt unbesetzbar (SEC-07, AC-P11). |
-| Session rules | Registrierung nur in der laufenden Sitzung nach Verimi-Rückkehr; Session-Dauer offen (OQ-TS-4); nach der Registrierung kein erneuter Login (FR-17). |
+| Session rules | Registrierung nur in der laufenden Sitzung nach Verimi-Rückkehr; **Session-Dauer: 15 Minuten** (T-03-Entscheidung, umgesetzt als `SESSION_TTL_SECONDS`/`sessionTtlMs` in `config.js`; vorher OQ-TS-4); bei Ablauf → 401, zurück zum Login-Einstieg; nach der Registrierung kein erneuter Login (FR-17). |
 | Input validation | Alle Eingaben serverseitig prüfen vor Speicherung/Weiterleitung; nur drei erlaubte Felder (BE-04, FR-14). |
 | Sensitive data | Passkey-Geheimnisse verlassen das Endgerät nie; keine Export-, Kopier- oder Wiederherstellungsfunktion (SEC-02, NFR-Sec-02, PR-01). Identitätsdaten verschlüsselt im Ruhezustand (NFR-DS-02). |
 | Secrets | Keine API-Keys/Tokens in Quelldateien, Konfigurationsbeispielen oder Logs; keine Klartext-Speicherung von Token (Security-Reminder der Spec-Vorlage, NFR-Sec-06). |
@@ -498,7 +537,7 @@ Validation: Enum-Prüfung, reason Pflicht, min. 5 Zeichen.
 | **OQ-TS-1** Woher stammt die **Verifi-Kennung** exakt (Claim/Parameter) und wie ist sichergestellt, dass sie nicht erratbar ist? API-02 ist der Sicherheitsanker (R-03) | Auftraggeber/Verimi-Anbieter | **Ja** — vor dem Prototypabschluss, sonst kein sicherer Zuordnungstest | vor Prototypabschluss |
 | **OQ-TS-2** Wie wird der **Phasenschalter** technisch bereitgestellt — Konfigurationsdatei, Umgebungsvariable oder zentraler Endpunkt? (ARCH-02, BE-01, API-06) | Projektteam | **Ja** — bestimmt, wie „ohne Neustart" erfüllt wird | vor Prototypabschluss |
 | **OQ-TS-3** Konkretes **Verfahren des Erreichbarkeitstests** (FR-71 `[V]`): Anmeldefähigkeit nachweisen ohne Nutzermitwirkung und ohne Geheimnis? | Projektteam | **Ja** — ohne Verfahren kein AC-P9/AC-9 | 2026-11-15 |
-| **OQ-TS-4** **Session-Handling der Registrierung:** Wie lange lebt die authentifizierte Session (FR-15)? Timeout? | Projektteam | **Ja** — bestimmt BE-03/API-03 | vor Prototypabschluss |
+| ~~**OQ-TS-4** **Session-Handling der Registrierung:** Wie lange lebt die authentifizierte Session (FR-15)? Timeout?~~ — **ENTSCHIEDEN (T-03, 2026-10):** server-seitige In-Memory-Session, **TTL 15 Minuten** (`SESSION_TTL_SECONDS`, Default 900), Zuordnung über `portal_sid`-Cookie; bei Ablauf → 401 und zurück zum Login-Einstieg. | Projektteam | erledigt | geschlossen (2026-10-15 nachgetragen) |
 | **OQ-TS-5** **Übergabeformat der Fehlfallliste** an den Auftraggeber (Kanal, Format), da Endnutzer-Kommunikation out-of-scope ist | Auftraggeber | Nein für den Prototyp, **Ja vor dem Stichtag** (ERR-10) | 2026-11-30 |
 | **OQ-TS-6** **Zielwerte PERF-03/04/05 und RTO** (`[V]`) verbindlich bestätigen — sie sind Vorschläge, keine zugesagten Werte | Auftraggeber | **Ja vor Gate B** — sie werden zu Performance-Tests | vor Gate B |
 

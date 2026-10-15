@@ -2,7 +2,7 @@
 
 **Datum:** 2026-10-08
 **Projekt:** Passkey-Login für das Kundenportal (Ersetzung Verimi)
-**Grundlage:** `_keycloak_info/system-architektur.2.drawio.svg` (Ist), `docs/` (task-plan, constraints, risks, open-questions, pre-requirements), Prototyp-Code (Stand 2026-10-08, Smoke 13/13 + E2E grün)
+**Grundlage:** `_keycloak_info/system-architektur.2.drawio.svg` (Ist), `docs/` (task-plan, constraints, risks, open-questions, pre-requirements), Prototyp-Code (Stand 2026-10-08, Smoke 12/12 + E2E grün)
 
 ---
 
@@ -33,7 +33,7 @@ Wechsel jederzeit bis 31.12.2026 möglich (AK-10), ab 01.01.2027 irreversibel.
 | **Ersetzbarkeit ohne Codezweig** | Mock ↔ echt nur über eine Konfigurationsvariable; kein `if (mock)` im Ablauf (T-30, AC-P7, ARCH-04) | T-30-Testprotokoll |
 | **Rückfallebene** | Verimi bleibt bis 31.12.2026 aktiv; Phasenschalter kippt den Ablauf ohne Deployment (AK-10, C-01) | R-09: Phasen „sperrreif" kennzeichnen |
 | **Bewusst kein HA** | Single-Instance ist die *Entscheidung*, nicht die Lücke: **ein** gemessener Restore (RTO ≤ 4 h) statt Redundanz (R-13, BR-13, PRD §7) | AK-11 / T-25 |
-| **Append-only-Audit** | `event_log` (SQLite, WAL) protokolliert alle sicherheitsrelevanten Zustände, pseudonymisiert (`SHA-256(verifi_id)[0:16]`), keine Identitätsfelder/Geheimnisse | T-22, AC-3 |
+| **Append-only-Audit** | `event_log` (SQLite, WAL) protokolliert alle sicherheitsrelevanten Zustände, pseudonymisiert (`SHA-256(verifi_id)[0:16]`), keine Klartext-Identitätsfelder/Geheimnisse. Die Anzeigename-Kopie liegt getrennt in `portal_identity` (ADR-001) | T-22, AC-3 |
 | **Asynchrone Nicht-Login-Pfade** | Erreichbarkeitstest läuft nach 202-Antwort im Hintergrund (ARCH-07), blockiert nie den Login | T-24 |
 | **Bekannte Schwachstellen (Prototyp-Code)** | In-Memory-Sessions (Neustart = Logout), SQLite-Ein-Schreiber, `running`-Sperre im Prozess — alles bei Einzelinstanz unkritisch, **muss aber in AP-4 dokumentiert entschieden werden** | T-03, OQ-06 |
 
@@ -64,7 +64,7 @@ Der kritische Punkt ist nicht Throughput, sondern die **menschliche Migrationsqu
 | **User-Enumeration** | 🟢 generische Fehler + Antwortzeit-Toleranzband (T-21) | AP-7: T-33 legt AC-13-Toleranzband fest |
 | **Brute-Force / Missbrauch** | 🟢 Rate-Limiting vorhanden (T-20) | AP-3: Produktivwerte festlegen |
 | **R-OPS-Admin-API** | 🟡 statisches Bearer-Token | AP-3: starkes Token + nur über TLS, optional Netzbereich |
-| **Audit/DSGVO** | 🟢 pseudonymisiert, keine Identitäten in portal.db | AP-0/AP-4: OQ-08 (AVV), OQ-09 (Aufbewahrung/Löschkonzept) |
+| **Audit/DSGVO** | 🟡 pseudonymisiertes Audit; seit ADR-001 enthält `portal_identity` in `portal.db` jedoch Klartext-PII (Name/E-Mail) | AP-0/AP-4: OQ-08 (AVV), OQ-09 (Aufbewahrung/Löschkonzept), NFR-DS-02 (Verschlüsselung) |
 | **Kein Recovery (R-04)** | bewusste Entscheidung (C-08) | Kein AP — akzeptiertes Risiko; Supportprozess trotzdem benennen (OQ-18 → AP-6) |
 | **Alt-Schnittstelle Verimi** | 🟡 Verimi-Adapter bleibt bis Cutover | AP-8: 01.01.2027 regelhaft abschalten (FR-63, AC-8) |
 
@@ -96,7 +96,7 @@ Der kritische Punkt ist nicht Throughput, sondern die **menschliche Migrationsqu
 │ Keycloak (Prod-Modus, AP-3)      │──── bis 31.12.2026 ────▶ Verimi (echt)
 │ Passkey-Registrierung/-Login     │     parallel (AK-10)     [01.01.2027 Raus]
 │ Identitätsdaten: Name, Vorname,  │
-│ E-Mail (nur hier, C-07)          │
+│ E-Mail (KC autoritativ)          │
 └───────────────┬──────────────────┘
                 │ Backup / Restore mit gemessener RTO ≤ 4 h (AK-11)
 ┌───────────────▼──────────────────┐
@@ -148,7 +148,7 @@ Bestand (bleibt): SAP (Stammdaten, vgv) ─täglich─▶ SQL (vgv) ─▶ Backu
 ### AP-1 — Funktions-Core (Gate A)
 - **Ziel:** Die vier Kernabläufe laufen und sind testprotokolliert.
 - **Inhalt:** T-09…T-19 (Phasenschalter, Login-Redirect, Callback, Registrierungsfrage, Vorbefüllung, Passkey-Login, Token-Prüfung, Sperrlogik) + T-28 Gate-A-End-zu-End-Test.
-- **Status:** im Wesentlichen **erledigt** (Stand 2026-10-08: `smoke.mjs` 13/13, E2E-Serie grün).
+- **Status:** im Wesentlichen **erledigt** (Stand 2026-10-08: `smoke.mjs` 12/12, E2E-Serie grün).
 - **DoD:** Testprotokoll **AK-01…AK-05** mit Datum/Tester/Ergebnis — Zieltermin **2026-10-19**.
 
 ### AP-2 — Integration in die Ist-Landschaft (Mock → Echt)
@@ -176,7 +176,7 @@ Bestand (bleibt): SAP (Stammdaten, vgv) ─täglich─▶ SQL (vgv) ─▶ Backu
 - **Ziel:** Alle Persistenzen sind produktiv definiert, gesichert, gelöscht.
 - **Inhalt:**
   - **Sessions:** In-Memory-Store — bei Einzelinstanz + 15-min-TTL bewusst „Neustart = Logout" akzeptieren **oder** persistenten Store bauen (Entscheidung hängt an OQ-06); als ADR festhalten
-  - `data/portal.db` (SQLite) beibehalten: lokal (kein Netzlaufwerk!), **ins Backup einbeziehen**, Retention/Löschkonzept (OQ-09), keine Identitätsfelder/Geheimnisse (Regeln aus `db.js`)
+  - `data/portal.db` (SQLite) beibehalten: lokal (kein Netzlaufwerk!), **ins Backup einbeziehen**, Retention/Löschkonzept (OQ-09); enthält seit ADR-001 Klartext-PII (`portal_identity`: Name/E-Mail) → Verschlüsselung im Ruhezustand (NFR-DS-02) bewerten; keine Geheimnisse (Regeln aus `db.js`)
   - `config/phase-config.json`: bleibt Datei (T-02), aber Änderungsweg nur über authentifizierte R-OPS-API + Audit-Eintrag
   - Erwartung: unbounded Wachstum des Event-Logs → Aufbewahrungsregel
 - **Abhängigkeiten:** AP-0 (OQ-06, OQ-09)
@@ -218,6 +218,7 @@ Bestand (bleibt): SAP (Stammdaten, vgv) ─täglich─▶ SQL (vgv) ─▶ Backu
 - **Inhalt:**
   - 31.12.2026: letzter Tag mit Verimi-Rückfall (AK-10)
   - 01.01.2027: Verimi-Adapter/Mock regelhaft entfernen (FR-63 „als entfernbar markieren **und abschalten**"), AC-8/AC-13: kein Verimi-Abruf im Regelbetrieb mehr
+  - **Voraussetzung — Logout entkoppelt (ADR-002, umgesetzt):** Der Logout ist portal-eigen und Verimi-unabhängig (T-35–T-37), sonst scheitert er nach dem Cutover an einem entfernten Verimi (siehe ADR-002 / R-14).
   - Notbetriebs-Kapitel des Runbooks aktivieren (Irreversibilität)
   - Stichprobe AK-12 (Drei-Felder-Abgleich) final, AK-06 (kein Verimi-Login nötig)
 - **Abhängigkeiten:** AP-7 (Gate B), AP-0 (OQ-15)

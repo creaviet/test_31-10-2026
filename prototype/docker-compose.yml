@@ -60,6 +60,11 @@ services:
     ports:
       - '8082:8082'
     volumes:
+      # Eigenes Login-Theme des Kundenportals (Passkey-Registrierung/-Anmeldung,
+      # deutsches Branding). Read-only als ZUSÄTZLICHES Unterverzeichnis in das
+      # Theme-Verzeichnis des Images gehängt — die eingebauten Themes (base,
+      # keycloak, …) bleiben dadurch erhalten. Quelle: keycloak/themes/kundenportal.
+      - ./keycloak/themes/kundenportal:/opt/keycloak/themes/kundenportal:ro
       # Nur noch Nicht-DB-Daten (tmp/Uploads) — die DB liegt im Volume postgres-data.
       - keycloak-data:/opt/keycloak/data
     depends_on:

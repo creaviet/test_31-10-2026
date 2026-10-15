@@ -86,7 +86,7 @@ async function main() {
     const created = await api('POST', `/admin/realms`, token, {
       realm: REALM,
       enabled: true,
-      displayName: 'Kundenportal Passkey-Prototyp (Prototyp)',
+      displayName: 'Kundenportal',
       registrationAllowed: false,
     });
     if (![201, 200, 204].includes(created.status)) {
@@ -99,8 +99,20 @@ async function main() {
   }
   console.log(`[realm] ${REALM} ${realmCreated ? 'angelegt' : 'vorhanden'}`);
 
-  // --- 2. WebAuthn-Policies (Passkey: resident/discoverable für username-loses Login) ---
+  // --- 2. Branding/Theme + WebAuthn-Policies ---------------------------------
+  // Branding: eigenes Login-Theme (Passkey-Registrierung UND -Anmeldung) und
+  // deutsche Oberfläche. Die Theme-Dateien liegen unter keycloak/themes/kundenportal
+  // und werden per Docker-Bind-Mount bzw. start-native.ps1 in die Keycloak-
+  // Distribution eingebracht. Fehlt das Theme, fällt Keycloak auf das Standard-
+  // Theme zurück (kein Fehler) — deshalb hier unkritisch.
   Object.assign(realm, {
+    displayName: 'Kundenportal',
+    loginTheme: 'kundenportal',
+    internationalizationEnabled: true,
+    supportedLocales: ['de', 'en'],
+    defaultLocale: 'de',
+
+    // WebAuthn-Policies (Passkey: resident/discoverable für username-loses Login)
     webAuthnPolicyRpEntityName: 'Kundenportal Passkey-Prototyp',
     webAuthnPolicyRpId: 'localhost',
     webAuthnPolicySignatureAlgorithms: ['ES256', 'RS256'],
@@ -123,6 +135,7 @@ async function main() {
   if (![200, 204].includes(realmUp.status)) {
     throw new Error(`Realm-Update fehlgeschlagen: ${realmUp.status} ${realmUp.text}`);
   }
+  console.log(`[realm] Branding gesetzt (loginTheme=kundenportal, Anzeigename="Kundenportal", Standardsprache=de)`);
   console.log('[realm] WebAuthn-Policies gesetzt (RP localhost, resident/discoverable, passwordless)');
 
   // --- 3. Flow "browser-passkey" (VOR den Clients, da Client-Flow-Bindings

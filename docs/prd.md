@@ -67,7 +67,7 @@ Verimi wird zum 31.12.2026 abgeschaltet; das Kundenportal ist der einzige Konsum
 
 In scope for this version:
 
-- **Phasengesteuerter Login-Einstieg (FR-01..FR-04):** genau ein Einstieg, von außen steuerbar (Verimi vor dem Stichtag, Passkey danach), jederzeit ohne Datenverlust zurückstellbar — *weil der Fallback bis 31.12.2026 das einzige Absicherung gegen interne Verzögerung ist*.
+- **Phasengesteuerter Login-Einstieg (FR-01..FR-04):** zwei dokumentierte Einstiege — „Anmelden" ist von außen steuerbar (Verimi vor dem Stichtag, Passkey danach) und jederzeit ohne Datenverlust zurückstellbar, „Passkey Login" führt direkt zum Passkey-Weg (Entscheidung 2026-10-08) — *weil der Fallback bis 31.12.2026 die einzige Absicherung gegen interne Verzögerung ist*.
 - **Freiwillige Passkey-Registrierung in der Migrationsphase (FR-10..FR-19):** Prüfung anhand der nicht erratbaren Verimi-Kennung, ja/nein-Frage, Vorbefüllung von Nachname/Vorname/E-Mail, Registrierung nur in gültiger Session — *weil dies der einzige selbstständige Migrationspfad für 80.000 Nutzer mit geringer Affinität ist*.
 - **Passkey-Login ab Stichtag (FR-30..FR-35):** ausschließlich gültiges Token, ein Credential, kein Selbst-Recovery, verständliche Fehler ohne Existenzauskunft — *weil Passkey ab 2027 das einzige Credential ist (BR-03/BR-04)*.
 - **Sperr- und Übergangslogik (FR-40..FR-45):** Ausschluss Nicht-Migrierter zum Stichtag, protokolliert als „mangels Passkey", konfigurierbarer Zeitpunkt ohne Neubau — *weil der Stichtag irreversibel ist und eine nicht nachvollziehbare Sperrung rechtlich und fachlich nicht vertretbar ist*.

@@ -121,6 +121,27 @@ if ($kcHome) {
   if (-not (Test-Path (Join-Path $kcHome 'bin\kc.bat'))) {
     throw "KC_HOME zeigt nicht auf eine Keycloak-Distribution: $kcHome"
   }
+
+  # Eigenes Login-Theme (Branding für Passkey-Registrierung/-Anmeldung) in die
+  # Keycloak-Distribution kopieren. Keycloak liest Themes aus <KC_HOME>\themes;
+  # .runtime ist gitignored → die Kopie entsteht bei jedem Start neu (idempotent).
+  # try/catch: läuft Keycloak bereits, können Dateien gesperrt sein — das darf den
+  # Start nicht abbrechen (ErrorActionPreference = 'Stop').
+  $themeSrc = Join-Path $repoRoot 'keycloak\themes\kundenportal'
+  $themeDst = Join-Path $kcHome 'themes\kundenportal'
+  if (Test-Path $themeSrc) {
+    try {
+      if (Test-Path $themeDst) { Remove-Item -Recurse -Force $themeDst }
+      New-Item -ItemType Directory -Force -Path $themeDst | Out-Null
+      Copy-Item -Path (Join-Path $themeSrc '*') -Destination $themeDst -Recurse -Force
+      Write-Host "[start] Login-Theme nach $themeDst kopiert."
+    } catch {
+      Write-Host "[start] WARNUNG: Login-Theme nicht kopiert (Keycloak aktiv/Datei gesperrt): $($_.Exception.Message)"
+    }
+  } else {
+    Write-Host "[start] WARNUNG: Theme-Verzeichnis fehlt: $themeSrc (Keycloak nutzt das Standard-Theme)"
+  }
+
   $kcProc = Get-NetTCPConnection -LocalPort 8082 -State Listen -ErrorAction SilentlyContinue
   if ($kcProc) {
     Write-Host "[start] Keycloak läuft bereits (Port 8082 belegt). Überspringe Start."

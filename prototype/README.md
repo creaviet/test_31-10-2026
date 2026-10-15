@@ -20,6 +20,8 @@ Lauffähiger Prototyp für die Passkey-Anmeldung am Kundenportal:
 | PostgreSQL (KC-DB) | 5432 | localhost:5432 (DB/User `keycloak`, Dev-Passwort `keycloak`) |
 | KC-Account | – | http://localhost:8082/realms/passkey-prototyp/account |
 
+> **Ports — dienst-intern vs. veröffentlicht:** Die Node-Mocks lauschen intern auf `PORT=3000`. Im Docker-Compose sind sie als `8081:3000` (Verimi) bzw. `8080:3000` (Portal) veröffentlicht; nativ setzt `start-native.ps1` `PORT` direkt auf 8081/8080. Ein direkter `node src/server.js`-Start **ohne** gesetztes `PORT` nutzt 3000 (Verimi) — dann passen `VERIMI_LOGIN_URL`/`PORTAL_CALLBACK_URL` nicht und der Login schlägt fehl. Die oben dokumentierten Ports gelten für die unterstützten Startwege.
+
 ## Phasen (T-02: Phasenschalter = Konfigurationsdatei)
 
 `config/phase-config.json` wird bei **jeder** Anfrage neu gelesen — ein Wechsel wirkt sofort:
@@ -105,6 +107,51 @@ Portal `http://keycloak:8082` (`KEYCLOAK_URL`), browser-seitig `http://localhost
 (`KEYCLOAK_PUBLIC_URL`); Keycloak läuft mit `--hostname localhost:8082`, damit der
 Token-Issuer und alle Frontend-Redirects für den Browser stimmen (jose-Issuer-Check).
 
+## Custom Login-Theme (Passkey-Registrierung & -Anmeldung)
+
+Das Branding der **Keycloak-Login-Seiten** — Passkey-Anmeldung, Passkey-Einrichtung
+(Required Action `webauthn-register-passwordless`) und der Standard-Login — liegt als
+eigenes Login-Theme **`kundenportal`** unter `keycloak/themes/kundenportal/` und ist an
+das Portal-Frontend angelehnt (gleiche Farben/Typografie wie
+`portal-mock/public/styles.css`).
+
+```
+keycloak/themes/kundenportal/login/
+├─ theme.properties                 # parent=keycloak, ergänzt css/kundenportal.css
+├─ resources/css/kundenportal.css   # Branding (Hintergrund, Karte, Buttons, Fokus …)
+└─ messages/messages_de.properties  # einzelne deutsche Texte
+```
+
+Eigenschaften:
+
+- **Erbt vom eingebauten Theme `keycloak`** (`parent=keycloak`). Es werden **keine
+  Templates** überschrieben — dadurch bleiben die stabilen Element-IDs der Passkey-Seiten
+  (`#registerWebAuthn`, `#authenticateWebAuthnButton`) erhalten, auf die die E2E-Tests
+  klicken.
+- Die Property `styles` wird von Keycloak **nicht geerbt**: `theme.properties` listet
+  deshalb `css/login.css` (Parent, wird über die Theme-Hierarchie aufgelöst) erneut und
+  hängt `css/kundenportal.css` **zuletzt** an — so überschreibt es gezielt einzelne Regeln.
+- **Deutsch als Standardsprache** des Realms (`internationalizationEnabled=true`,
+  `supportedLocales=[de,en]`, `defaultLocale=de`); `messages_de.properties` schärft
+  einzelne Texte nach (z. B. „Sichere Anmeldemethode einrichten").
+- Fehlt das Theme, fällt Keycloak auf das Standard-Theme zurück (Warnung, **kein** Fehler).
+
+**Auslieferung des Themes:**
+
+| Startweg | Theme wird ausgeliefert durch |
+|---|---|
+| Docker | Bind-Mount `./keycloak/themes/kundenportal:/opt/keycloak/themes/kundenportal:ro` (`docker-compose.yml`) — als **zusätzliches** Unterverzeichnis, die eingebauten Themes (`base`, `keycloak`, …) bleiben erhalten. |
+| Nativ | `scripts\start-native.ps1` kopiert das Theme vor dem Keycloak-Start nach `<KC_HOME>\themes\kundenportal` (idempotent). |
+
+Die Realm-Verknüpfung (`loginTheme=kundenportal`, Anzeigename „Kundenportal", Sprachen)
+setzt `keycloak/setup-realm.mjs` bei **jedem** Lauf: im Docker-Stack erledigt das der
+`keycloak-setup`-Service nach jedem `up`; nativ genügt `cd keycloak; node setup-realm.mjs`.
+
+> **Änderungen ausprobieren:** Keycloak läuft mit `start-dev` (Theme-Caching aus) — CSS-/
+> Text-Änderungen sind unmittelbar nach einem Reload sichtbar. Bei aktivem Caching später
+> `kc.sh build` bzw. den Container neu starten. Realm-Theme zurücksetzen: Admin-Konsole →
+> Realm settings → Themes → Login theme = `keycloak`.
+
 ## Test-User (Verimi-Mock & Keycloak)
 
 | User | Passwort | verifi_id | Passkey |
@@ -134,8 +181,8 @@ per Required Action registriert (Variante A).
 ```bash
 cd tests
 npm install                        # einmalig (@playwright/test)
-node smoke.mjs                     # 13 API-Smoke-Tests (setzt erikas Passkey selbst zurück)
-npx playwright test --config=playwright.config.js   # E2E T1–T5 + T2b (Chrome, Seriell)
+node smoke.mjs                     # 12 API-Smoke-Tests (setzt erikas Passkey selbst zurück)
+npx playwright test --config=playwright.config.js   # E2E T1, T2, T2b, T2c, T2d, T3, T4, T5 (Chrome, Seriell)
 ```
 
 E2E-Abnahmetests (alle grün):
@@ -146,9 +193,10 @@ E2E-Abnahmetests (alle grün):
    `end_session` **mit `id_token_hint`** (SSO-Revocation: kein stiller Re-Login mehr)
 3. **T2b** „Passkey Login“-Button: username-loser Passkey-Login ohne Verimi (neuer Einstieg)
 4. **T2c** Sicherheits-Fix: Back-Button nach Logout zeigt keinen geschützten Bereich (bfcache/History)
-5. **T3** „Nein“-Pfad (AC-P2): geschützter Bereich ohne Passkey, ohne Fehlertext
-6. **T4** Phase-2-Login: username-loses WebAuthn ohne Verimi (FR-16)
-7. **T5** Sperr-Demo (AC-3, BE-07): Phase 2 + Nutzer ohne Passkey → 403 + Ereignis
+5. **T2d** Logout nach Passkey-Login landet auf der Startseite — ohne Verimi-Kontakt (ADR-002)
+6. **T3** „Nein“-Pfad (AC-P2): geschützter Bereich ohne Passkey, ohne Fehlertext
+7. **T4** Phase-2-Login: username-loses WebAuthn ohne Verimi (FR-16)
+8. **T5** Sperr-Demo (AC-3, BE-07): Phase 2 + Nutzer ohne Passkey → 403 + Ereignis
 
 Die E2E-Suite nutzt einen gemeinsamen Playwright-Context mit **einem** virtuellen
 Authenticator (CTAP2, resident, user-verified) auf einer gemeinsamen Flow-Seite
@@ -190,24 +238,27 @@ Authenticator (CTAP2, resident, user-verified) auf einer gemeinsamen Flow-Seite
   - **Keycloak** (Phase 2, „Passkey Login", Registrierung): in API-01 bzw. am
     zentralen Durchlaufpunkt `/api/auth/kc/start` über `KEYCLOAK_URL`
     (Docker: `http://keycloak:8082`, Discovery-Endpoint des Realms).
-- **Logout beendet alle Sessions** (Portal + Keycloak + Verimi).
-  Keycloak wird bevorzugt per **OIDC RP-Initiated Logout** (`end_session_endpoint`
-  mit `id_token_hint` + `post_logout_redirect_uri`) abgemeldet — das `id_token` der
-  Session wird dafür gespeichert. `id_token_hint` ist zwingend: ohne ihn rendert
-  Keycloak 26.2+ eine Logout-Bestätigungsseite und leitet nicht automatisch weiter.
-  Für reine Verimi-Sessions (kein `id_token`) wird die Keycloak-Session ersatzweise
-  serverseitig per Admin-API (`users/{id}/logout`) beendet. Erst so ist ein
-  erneuter Login wieder zugangsdaten-pflichtig.
-  - **Ziel (ADR-002, geplant in T-35…T-37):** Der Logout ist **portal-eigen** und
-    **Verimi-unabhängig**: die Rückleitung zur Startseite kommt aus dem Portal
-    (festes Ziel `${PUBLIC_BASE_URL}/`), die Verimi-Abmeldung läuft **nur** bei
-    einer echten Verimi-Session und ist fehlertolerant, wenn Verimi nicht
-    erreichbar ist.
-  - **Aktueller Stand (Prototyp):** Der Logout leitet noch **unbedingt** über die
-    Verimi-Abmeldung; den Rücksprung zur Startseite führt der **Verimi-Mock** aus
-    (`?redirect=…`). Ist der Verimi-Mock gestoppt, bleibt der Browser deshalb auf
-    `http://localhost:8081/logout?...` stehen und erreicht die Startseite nicht
-    (siehe `R-14` in `docs/risks.md`).
+- **Logout beendet alle Sessions** (Portal + Keycloak + Verimi) — **portal-eigen
+  und Verimi-unabhängig (ADR-002, umgesetzt):**
+  - **Selbst-abschließend:** Der Browser landet am Ende **immer** auf einer
+    Portal-Route — `${PUBLIC_BASE_URL}/` (Startseite) bzw. `/logout/done`. Den
+    Abschluss führt das Portal aus, **nie** ein externer Dienst.
+  - **Konditional:** Die Verimi-Abmeldung läuft **nur**, wenn die Session
+    tatsächlich über Verimi entstanden ist (`session.viaVerimi`, gesetzt im
+    Verimi-Callback). Reine Passkey-/Phase-2-Sessions überspringen sie komplett
+    (`/logout/done`).
+  - **Fehlertolerant:** Ist Verimi nicht erreichbar, springt der Logout trotzdem
+    auf die Startseite (`verimiLogoutOrHome` prüft die Erreichbarkeit vorab).
+    Damit bleibt der Browser **nicht** mehr auf `:8081` stehen (behebt R-14).
+  - Keycloak wird bevorzugt per **OIDC RP-Initiated Logout** (`end_session_endpoint`
+    mit `id_token_hint` + `post_logout_redirect_uri`) abgemeldet — das `id_token` der
+    Session wird dafür gespeichert. `id_token_hint` ist zwingend: ohne ihn rendert
+    Keycloak 26.2+ eine Logout-Bestätigungsseite und leitet nicht automatisch weiter.
+    Für reine Verimi-Sessions (kein `id_token`) wird die Keycloak-Session ersatzweise
+    serverseitig per Admin-API (`users/{id}/logout`) beendet. Erst so ist ein
+    erneuter Login wieder zugangsdaten-pflichtig.
+  - **Nachweis:** E2E-Test **T2d** („Logout nach Passkey-Login landet auf der
+    Startseite — ohne Verimi-Kontakt").
 - **Geschützter Bereich & Cache:** Das SPA-Dokument und alle `/api/*`-Antworten sind
   `Cache-Control: no-store`; der geschützte Bereich wird erst nach erfolgreicher
   Autorisierung (`/api/session`) per `<template>` erzeugt. Zusätzlich revalidiert das

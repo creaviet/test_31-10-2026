@@ -58,11 +58,11 @@ Status: **Entwurf zur Freigabe**
 - **Dependencies:** T-01 (Kennung muss dem Modell zugeordnet sein können)
 
 ### T-06 — Portal-Datenbank anlegen
-- **Goal:** Die drei Portal-Entities der Spezifikation existieren mit Feldern, Constraints und Indexen.
-- **Related requirement:** technical-spec DB-Entities Phasenkonfiguration, Ereignis-Protokoll, Erreichbarkeitstest-Ergebnis · FR-18, FR-19, FR-44, API-06
-- **Expected output:** Schema für `phase_config` (phase, changed_at, changed_by, reason), `event_log` (append-only) und `reachability_result`; Index auf `event_type + occurred_at`.
-- **Acceptance check:** Schema-Review gegen technical-spec §5 bestanden; Protokolleinträge enthalten keine Klartext-Identitätsfelder und keine Geheimnisse (DB-06, NFR-Sec-06); genau ein aktiver Phasensatz ist technisch erzwungen.
-- **Do-not-change-boundaries:** **Keine Identitätsfelder (Name/Vorname/E-Mail) in der Portal-DB** — die leben ausschließlich in Keycloak (NFR-DS-01); keine Report-/Quotentabellen (Reporting out of scope); keine Reaktivierungs- oder Schaltertabellen (PRD §7).
+- **Goal:** Die Portal-Entities der Spezifikation existieren mit Feldern, Constraints und Indexen; die Phasenkonfiguration liegt per T-02-Entscheidung als Datei vor.
+- **Related requirement:** technical-spec DB-Entities Ereignis-Protokoll, Erreichbarkeitstest-Ergebnis, Portal-Identität (ADR-001) · FR-18, FR-19, FR-44, API-06
+- **Expected output:** Schema für `event_log` (append-only), `reachability_result` und `portal_identity` (reference, first_name, last_name, email, updated_at — ADR-001); Index auf `event_type + occurred_at`; Phasenkonfiguration als atomar geschriebene Datei `config/phase-config.json` (T-02), **keine** `phase_config`-Tabelle.
+- **Acceptance check:** Schema-Review gegen technical-spec §5 bestanden; Protokolleinträge enthalten keine Klartext-Identitätsfelder und keine Geheimnisse (DB-06, NFR-Sec-06); `portal_identity` ist über die pseudonymisierte Referenz geschlüsselt (kein Klartext-Identifikator); bei jedem Login wird genau ein aktiver Phasenwert aus der Datei gelesen.
+- **Do-not-change-boundaries:** Identitätsfelder (Nachname/Vorname/E-Mail) existieren **nur** in `portal_identity` als Anzeigename-Kopie mit pseudonymisiertem Schlüssel (ADR-001) — autoritative Quelle bleibt Keycloak; keine weiteren Identitäts-/Ausweisfelder; keine Report-/Quotentabellen (Reporting out of scope); keine Reaktivierungstabellen und **keine** `phase_config`-Tabelle (PRD §7, T-02).
 - **Dependencies:** T-02, T-04
 
 ### T-07 — Portal-Mock: Login-Einstieg und geschützter Bereich

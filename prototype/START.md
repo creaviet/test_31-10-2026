@@ -10,6 +10,8 @@ Detaillierte Hintergründe: [`README.md`](README.md) · [`../_keycloak_info/syst
 | keycloak | 8082 | http://localhost:8082 (Admin: `/admin`, admin/admin) |
 | postgres | 5432 | localhost:5432 — Datenbank des Keycloak (DB/User `keycloak`, Dev-Passwort `keycloak`) |
 
+> **Ports:** verimi-mock/portal-mock lauschen intern auf 3000. Nativ setzt `start-native.ps1` die Ports 8081/8080, im Docker-Compose sind sie als `8081:3000`/`8080:3000` gemappt. Ein direkter Start `node src/server.js` **ohne** `PORT` nutzt 3000.
+
 Test-User (alle mit Passwort `test`): `erika` (Passkey zurückgesetzt – eigenen registrieren),
 `bob` („Nein"-Pfad), `carol` (Passkey gesetzt), `dan`, `frank`, `gerd`, `hans` (Demo-User).
 
@@ -162,7 +164,7 @@ Wechselt sofort, `phase-config.json` wird pro Request neu gelesen.
 | Port 5432 belegt | andere PostgreSQL-Instanz | wird als Keycloak-DB verwendet — Zugangsdaten ggf. über `KC_DB_USER`/`KC_DB_PASSWORD` setzen |
 | Keycloak startet nicht / DB-Fehler | PostgreSQL nicht bereit | `docker ps` (Container `prototype-postgres` bzw. `prototype-postgres-1`), Logs: `docker logs prototype-postgres` |
 | Portal läuft, Login schlägt fehl | Realm fehlt | `cd keycloak; node setup-realm.mjs` |
-| Nach Logout landet der Browser auf `localhost:8081` statt der Startseite | Logout leitet **unbedingt** über die Verimi-Abmeldung; den Rücksprung zur Startseite führt der Verimi-Mock aus (ADR-002 / R-14) | verimi-mock starten **oder** Fix T-35–T-37 (Logout entkoppeln) |
+| Nach Logout landet der Browser auf `localhost:8081` statt der Startseite | **nur bei altem Stand:** Logout leitete unbedingt über die Verimi-Abmeldung. Seit **ADR-002 (umgesetzt)** ist der Logout portal-eigen und Verimi-unabhängig — dieses Symptom sollte nicht mehr auftreten | Code-Stand prüfen (ADR-002 / T-35–T-37); bei echtem Dead-End verimi-mock-Logout-URL (`VERIMI_LOGOUT_URL`) kontrollieren |
 | KC-Logs nötig | — | `.runtime/logs/kc.stdout.log`, `kc.stderr.log` |
 | Alles zurücksetzen | — | Docker: `docker compose down -v` (löscht `postgres-data` + Portal-DB) · native: Container `prototype-postgres` samt Volume + `data/portal.db` löschen |
 | `docker compose` schlägt fehl, Mounts leer | Projekt auf Netzlaufwerk | Offener Fix F1 — siehe oben |
